@@ -23,8 +23,8 @@ const config: QuartzConfig = {
       fontOrigin: "googleFonts",
       cdnCaching: true,
       typography: {
-        header: "Schibsted Grotesk",
-        body: "Source Sans Pro",
+        header: "Roboto",
+        body: "Roboto",
         code: "IBM Plex Mono",
       },
       colors: {
@@ -72,6 +72,7 @@ const config: QuartzConfig = {
       Plugin.CrawlLinks({ markdownLinkResolution: "shortest" }),
       Plugin.Description(),
       Plugin.Latex({ renderEngine: "katex" }),
+      Plugin.MapLocations(),
     ],
     filters: [Plugin.RemoveDrafts()],
     emitters: [
@@ -90,6 +91,7 @@ const config: QuartzConfig = {
       Plugin.NotFoundPage(),
       // Comment out CustomOgImages to speed up build time
       Plugin.CustomOgImages(),
+       Plugin.MapPage(),
     ],
   },
 }
