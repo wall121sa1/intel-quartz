@@ -398,10 +398,101 @@ export const MapPage: QuartzEmitterPlugin = () => {
       border-radius: 8px;
       border: 1px solid #3a3a3a;
       text-align: center;
+      min-width: 350px;
     }
     
     .loading p {
       color: #e0e0e0;
+      margin: 10px 0;
+    }
+    
+    .progress-bar-container {
+      width: 100%;
+      height: 20px;
+      background: #1a1a1a;
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 15px 0;
+      border: 1px solid #3a3a3a;
+    }
+    
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #4a9eff 0%, #3a8eef 100%);
+      border-radius: 10px;
+      transition: width 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .progress-bar::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      right: 0;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.3) 50%,
+        transparent 100%
+      );
+      animation: shimmer 2s infinite;
+    }
+    
+    @keyframes shimmer {
+      0% {
+        transform: translateX(-100%);
+      }
+      100% {
+        transform: translateX(100%);
+      }
+    }
+    
+    .progress-text {
+      font-size: 14px;
+      color: #4a9eff;
+      font-weight: bold;
+      margin-top: 5px;
+    }
+    
+    .loading-error {
+      color: #ff4444;
+      margin-top: 15px;
+      font-size: 13px;
+    }
+    
+    .loading-success {
+      color: #4eff4a;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+    
+    .pulse {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.7;
+      }
+    }
+    
+    .fade-out {
+      animation: fadeOut 0.5s ease-in-out forwards;
+    }
+    
+    @keyframes fadeOut {
+      from {
+        opacity: 1;
+      }
+      to {
+        opacity: 0;
+      }
     }
     
     .radius-circle {
@@ -506,8 +597,12 @@ export const MapPage: QuartzEmitterPlugin = () => {
   
   <div id="map">
     <div class="loading" id="loading">
-      <p>Loading intelligence data...</p>
-      <p style="font-size: 12px; color: #999;">Processing ${locationsData.length} locations</p>
+      <p><strong>🗺️ Loading Intelligence Map</strong></p>
+      <div class="progress-bar-container">
+        <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+      </div>
+      <div class="progress-text" id="progressText">0%</div>
+      <p class="loading-status" id="loadingStatus">Initializing map...</p>
     </div>
   </div>
   
@@ -538,6 +633,12 @@ export const MapPage: QuartzEmitterPlugin = () => {
     
     // Initialize map with dark theme
     function initMap() {
+      // Update loading status
+      const loadingStatus = document.getElementById('loadingStatus');
+      if (loadingStatus) {
+        loadingStatus.textContent = 'Initializing map tiles...';
+      }
+      
       map = L.map('map').setView([22.3193, 114.1694], 11); // Center on Hong Kong
       
       // Use dark tile layer
@@ -546,6 +647,11 @@ export const MapPage: QuartzEmitterPlugin = () => {
         subdomains: 'abcd',
         maxZoom: 19
       }).addTo(map);
+      
+      // Update status
+      if (loadingStatus) {
+        loadingStatus.textContent = 'Setting up clustering...';
+      }
       
       // Initialize marker cluster group
       markerClusterGroup = L.markerClusterGroup({
@@ -565,6 +671,11 @@ export const MapPage: QuartzEmitterPlugin = () => {
           setRadiusSearch(e.latlng, radius);
         }
       });
+      
+      // Update status
+      if (loadingStatus) {
+        loadingStatus.textContent = 'Map ready, loading locations...';
+      }
     }
     
     // Calculate distance between two points in km
@@ -654,9 +765,36 @@ export const MapPage: QuartzEmitterPlugin = () => {
       \`;
     }
     
-    // Add all markers
+    // Add all markers with progress tracking
     async function addAllMarkers() {
       const loadingEl = document.getElementById('loading');
+      const progressBar = document.getElementById('progressBar');
+      const progressText = document.getElementById('progressText');
+      const loadingStatus = document.getElementById('loadingStatus');
+      
+      const total = allLocations.length;
+      let processed = 0;
+      
+      // Update progress
+      function updateProgress(status) {
+        processed++;
+        const percentage = Math.round((processed / total) * 100);
+        
+        if (progressBar) {
+          progressBar.style.width = percentage + '%';
+        }
+        if (progressText) {
+          progressText.textContent = percentage + '%';
+        }
+        if (loadingStatus && status) {
+          loadingStatus.textContent = status;
+        }
+      }
+      
+      // Initial status
+      if (loadingStatus) {
+        loadingStatus.textContent = 'Processing ' + total + ' locations...';
+      }
       
       for (let i = 0; i < allLocations.length; i++) {
         const loc = allLocations[i];
@@ -666,12 +804,33 @@ export const MapPage: QuartzEmitterPlugin = () => {
           marker.bindPopup(createPopupContent(loc));
           marker.locationData = loc;
           allMarkers.push(marker);
+          
+          // Update progress
+          updateProgress('Loaded: ' + loc.title);
+        } else {
+          // Still count as processed even if no coordinates
+          updateProgress('Skipped: ' + loc.title + ' (no coordinates)');
+        }
+        
+        // Add small delay for smooth animation
+        if (i % 10 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 10));
         }
       }
       
-      // Remove loading message
+      // Final loading steps
+      if (loadingStatus) {
+        loadingStatus.textContent = 'Finalizing map...';
+      }
+      
+      // Small delay before removing loading screen
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Remove loading message with fade effect
       if (loadingEl) {
-        loadingEl.remove();
+        loadingEl.style.transition = 'opacity 0.5s';
+        loadingEl.style.opacity = '0';
+        setTimeout(() => loadingEl.remove(), 500);
       }
       
       // Initial display
@@ -893,10 +1052,53 @@ export const MapPage: QuartzEmitterPlugin = () => {
       });
     }
     
-    // Initialize everything
-    initMap();
-    setupEventListeners();
-    addAllMarkers();
+    // Initialize everything with progress tracking
+    async function initialize() {
+      const loadingEl = document.getElementById('loading');
+      const loadingStatus = document.getElementById('loadingStatus');
+      
+      try {
+        // Start with a small delay for smooth loading experience
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Initialize map
+        initMap();
+        
+        // Setup event listeners
+        if (loadingStatus) {
+          loadingStatus.textContent = 'Configuring filters...';
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
+        setupEventListeners();
+        
+        // Load all markers with progress
+        await addAllMarkers();
+        
+      } catch (error) {
+        console.error('Map initialization error:', error);
+        
+        // Show error in loading screen
+        if (loadingEl) {
+          const progressBar = document.getElementById('progressBar');
+          const progressText = document.getElementById('progressText');
+          
+          if (progressBar) {
+            progressBar.style.background = 'linear-gradient(90deg, #ff4444 0%, #cc0000 100%)';
+            progressBar.style.width = '100%';
+          }
+          if (progressText) {
+            progressText.textContent = 'Error';
+            progressText.style.color = '#ff4444';
+          }
+          if (loadingStatus) {
+            loadingStatus.innerHTML = '<div class="loading-error">Failed to initialize map: ' + error.message + '<br>Please refresh the page to try again.</div>';
+          }
+        }
+      }
+    }
+    
+    // Start initialization
+    initialize();
   </script>
 </body>
 </html>`
