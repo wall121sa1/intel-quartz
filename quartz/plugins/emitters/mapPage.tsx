@@ -67,6 +67,7 @@ export const MapPage: QuartzEmitterPlugin = () => {
         { name: "Dubai OTC", tags: ["P2PDesk"], topics: ["Dubai", "UAE"] },
         { name: "All P2P Desks", tags: ["P2PDesk"], topics: [] },
         { name: "Highly Sensitive", classification: "HIGHLY SENSITIVE", tags: [], topics: [] },
+        { name: "Public", classification: "PUBLIC", tags: [], topics: [] }
       ]
       
       // Create an enhanced HTML page with filtering and radius search
@@ -76,10 +77,12 @@ export const MapPage: QuartzEmitterPlugin = () => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Intelligence Map - ${ctx.cfg.configuration.pageTitle}</title>
+  <title>Intelligence Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markerclusterer@1.5.3/dist/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markerclusterer@1.5.3/dist/MarkerCluster.Default.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+      
   <style>
     * {
       margin: 0;
@@ -506,7 +509,7 @@ export const MapPage: QuartzEmitterPlugin = () => {
     .divider {
       width: 100%;
       height: 1px;
-      background: #3a3a3a;
+      background: #3a3a3aff;
       margin: 10px 0;
     }
     
@@ -529,8 +532,7 @@ export const MapPage: QuartzEmitterPlugin = () => {
   <div class="header">
     <div class="header-top">
       <h1>
-        <span>🗺️</span>
-        <span>Intelligence Map</span>
+        <span>Offchain Intelligence</span>
         <span class="classification-badge">HIGHLY SENSITIVE</span>
       </h1>
       <a href="/" class="back-link">← Back to Home</a>
@@ -597,7 +599,7 @@ export const MapPage: QuartzEmitterPlugin = () => {
   
   <div id="map">
     <div class="loading" id="loading">
-      <p><strong>🗺️ Loading Intelligence Map</strong></p>
+      <p><strong>Loading Map</strong></p>
       <div class="progress-bar-container">
         <div class="progress-bar" id="progressBar" style="width: 0%"></div>
       </div>
@@ -607,7 +609,8 @@ export const MapPage: QuartzEmitterPlugin = () => {
   </div>
   
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.markerclusterer@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  
   <script>
     // All location data
     const allLocations = ${JSON.stringify(locationsData)};
@@ -642,11 +645,9 @@ export const MapPage: QuartzEmitterPlugin = () => {
       map = L.map('map').setView([22.3193, 114.1694], 11); // Center on Hong Kong
       
       // Use dark tile layer
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd',
-        maxZoom: 19
-      }).addTo(map);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap, © CARTO', subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
       
       // Update status
       if (loadingStatus) {
