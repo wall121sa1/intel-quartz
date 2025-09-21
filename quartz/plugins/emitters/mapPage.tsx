@@ -645,9 +645,10 @@ export const MapPage: QuartzEmitterPlugin = () => {
       map = L.map('map').setView([22.3193, 114.1694], 11); // Center on Hong Kong
       
       // Use dark tile layer
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-  attribution: '© OpenStreetMap, © CARTO', subdomains: 'abcd', maxZoom: 19
-}).addTo(map);
+ L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', 
+  { attribution: '© Esri, HERE, Garmin, FAO, NOAA, USGS, © OpenStreetMap contributors' }
+).addTo(map);
       
       // Update status
       if (loadingStatus) {
