@@ -29,7 +29,7 @@ export function generateHeader(
     <div class="header">
       <div class="header-top">
         <h1>
-          <span class="classification-badge">HIGHLY SENSITIVE</span>
+          <span class="classification-badge">SENSITIVE</span>
           <span>Offchain Intelligence</span>
            </h1>
         <a href="/" class="back-link">← Back to Home</a>
@@ -129,13 +129,6 @@ export function generateScriptTags(): string {
 export function generateFooter(footerConfig: FooterConfig): string {
   const currentYear = new Date().getFullYear()
   const { 
-    title = "Intelligence Map",
-    description = "",
-    dataSources = [],
-    showStats = true,
-    threatLevel = 'moderate',
-    operationalStatus = "",
-    links = [],
     disclaimer = "",
     copyright = ""
   } = footerConfig
@@ -144,7 +137,7 @@ export function generateFooter(footerConfig: FooterConfig): string {
 <footer class="map-footer">
     <div class="footer-content">
         <div class="footer-left">
-            <span class="classification-badge">SENSITIVE</span>
+             ${copyright ? `<p>&copy; ${currentYear} ${copyright}</p>` : ''}
         </div>
         
         <div class="footer-center">
@@ -152,10 +145,7 @@ export function generateFooter(footerConfig: FooterConfig): string {
         </div>
         
         <div class="footer-right">
-            ${copyright ? `<p>&copy; ${currentYear} ${copyright}</p>` : ''}
-            ${disclaimer ? `
-                <span class="footer-separator">|</span>
-                <p class="footer-disclaimer">${disclaimer}</p>
+          ${disclaimer ? ` <p class="footer-disclaimer">${disclaimer}</p>
             ` : ''}
         </div>
     </div>
