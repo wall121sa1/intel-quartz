@@ -83,5 +83,10 @@ export default {
       showingFirst: ({ count }) => `Showing first ${count} tags.`,
       totalTags: ({ count }) => `Found ${count} total tags.`,
     },
+    map: {
+      title: "Intelligence Map",
+      description: "Explore intelligence reports and notes by location.",
+
+    }
   },
 } as const satisfies Translation

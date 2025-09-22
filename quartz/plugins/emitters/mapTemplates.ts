@@ -29,9 +29,9 @@ export function generateHeader(
     <div class="header">
       <div class="header-top">
         <h1>
-          <span>Offchain Intelligence</span>
           <span class="classification-badge">HIGHLY SENSITIVE</span>
-        </h1>
+          <span>Offchain Intelligence</span>
+           </h1>
         <a href="/" class="back-link">← Back to Home</a>
       </div>
       
@@ -141,68 +141,24 @@ export function generateFooter(footerConfig: FooterConfig): string {
   } = footerConfig
   
   return `
-    <footer class="map-footer">
-      <div class="footer-content">
-        <div class="footer-section">
-          <h4>${title}</h4>
-          ${description ? `<p>${description}</p>` : ''}
-          <p class="footer-classification">
-            <span class="classification-badge">HIGHLY SENSITIVE</span>
-            <span class="footer-text">Authorized Personnel Only</span>
-          </p>
+<footer class="map-footer">
+    <div class="footer-content">
+        <div class="footer-left">
+            <span class="classification-badge">SENSITIVE</span>
         </div>
         
-        ${dataSources.length > 0 ? `
-        <div class="footer-section">
-          <h4>Data Sources</h4>
-          <ul>
-            ${dataSources.map(source => `<li>${source}</li>`).join('')}
-          </ul>
+        <div class="footer-center">
+            <!-- Optional: Add stats here if needed -->
         </div>
-        ` : ''}
         
-        ${showStats ? `
-        <div class="footer-section">
-          <h4>Quick Stats</h4>
-          <div class="footer-stats" id="footerStats">
-            <div class="stat-item">
-              <span class="stat-value" id="totalLocations">--</span>
-              <span class="stat-label">Total Locations</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-value" id="totalCountries">--</span>
-              <span class="stat-label">Countries</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-value" id="lastUpdated">--</span>
-              <span class="stat-label">Last Updated</span>
-            </div>
-          </div>
+        <div class="footer-right">
+            ${copyright ? `<p>&copy; ${currentYear} ${copyright}</p>` : ''}
+            ${disclaimer ? `
+                <span class="footer-separator">|</span>
+                <p class="footer-disclaimer">${disclaimer}</p>
+            ` : ''}
         </div>
-        ` : ''}
-        
-        <div class="footer-section">
-          <h4>Operations</h4>
-          ${operationalStatus ? `<p>${operationalStatus}</p>` : ''}
-          <p>Threat Level: <span class="threat-level ${threatLevel}">${threatLevel.toUpperCase()}</span></p>
-          ${links.length > 0 ? `
-          <p class="footer-links">
-            ${links.map((link, i) => 
-              `${i > 0 ? ' | ' : ''}<a href="${link.url}">${link.text}</a>`
-            ).join('')}
-          </p>
-          ` : ''}
-        </div>
-      </div>
-      
-      <div class="footer-bottom">
-        ${copyright ? `<p>&copy; ${currentYear} ${copyright}</p>` : ''}
-        ${disclaimer ? `
-        <p class="footer-disclaimer">
-          ${disclaimer}
-        </p>
-        ` : ''}
-      </div>
-    </footer>
+    </div>
+</footer>
   `
 }

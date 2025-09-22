@@ -108,7 +108,7 @@ export function generateMapScript(
     
     // Create custom icon for markers
     function createIcon(loc) {
-      const color = loc.classification === 'HIGHLY SENSITIVE' ? '#8b0000' : '#4a9eff';
+      const color = loc.classification === 'SENSITIVE' ? '#8b0000' : '#4a9eff';
       return L.divIcon({
         html: '<div style="background:' + color + ';width:10px;height:10px;border-radius:50%;border:2px solid white;"></div>',
         iconSize: [14, 14],

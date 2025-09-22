@@ -1,3 +1,4 @@
+import { disconnect } from "process"
 import { QuartzConfig } from "./quartz/cfg"
 import * as Plugin from "./quartz/plugins"
 
@@ -91,7 +92,10 @@ const config: QuartzConfig = {
       Plugin.NotFoundPage(),
       // Comment out CustomOgImages to speed up build time
       Plugin.CustomOgImages(),
-       Plugin.MapPage(),
+      Plugin.MapPage({footerConfig: {
+        disclaimer: "The information contained in this map is sensitive. Unauthorized access, use, or distribution is strictly prohibited.",
+        copyright: "(C) Crystal Intelligence 2025. All rights reserved."
+      }}),
     ],
   },
 }

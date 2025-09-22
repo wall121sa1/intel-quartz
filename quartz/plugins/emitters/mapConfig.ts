@@ -60,30 +60,28 @@ export const DEFAULT_FILTER_PRESETS: FilterPreset[] = [
   { name: "Hong Kong OTC", tags: ["P2PDesk"], topics: ["Hong Kong"] },
   { name: "Dubai OTC", tags: ["P2PDesk"], topics: ["Dubai", "UAE"] },
   { name: "All P2P Desks", tags: ["P2PDesk"], topics: [] },
-  { name: "Highly Sensitive", classification: "HIGHLY SENSITIVE", tags: [], topics: [] },
-  { name: "Public", classification: "PUBLIC", tags: [], topics: [] }
+  { name: "SENSITIVE", classification: "SENSITIVE", tags: [], topics: [] },
+  { name: "PUBLIC", classification: "PUBLIC", tags: [], topics: [] }
 ]
 
 // Export DEFAULT_FOOTER_CONFIG
 export const DEFAULT_FOOTER_CONFIG: FooterConfig = {
-  title: "Intelligence Map",
-  description: "Real-time tracking of P2P desks and OTC operations worldwide.",
+  title: "Offchain Info - Fusing Web3 Intelligence",
+  description: "Real-time tracking of Cash to Cryptocurrency Operations worldwide.",
   dataSources: [
-    "Crystal Research Team",
     "Field Intelligence Reports",
     "Open Source Intelligence",
-    "Partner Networks"
   ],
   showStats: true,
   threatLevel: 'moderate',
-  operationalStatus: "24/7 Monitoring Active",
+  operationalStatus: "Active Monitoring",
   links: [
-    { text: "Main Dashboard", url: "/" },
+    { text: "Dashboard", url: "/" },
     { text: "Reports", url: "/reports" },
     { text: "Alerts", url: "/alerts" }
   ],
   disclaimer: "This map contains sensitive intelligence data. Unauthorized access, distribution, or use is strictly prohibited and may result in legal action. By accessing this system, you acknowledge that you are authorized to view this content.",
-  copyright: "Offchain Intelligence Unit. All intelligence is proprietary and confidential."
+  copyright: "Crystal Intelligence. All information is proprietary and confidential."
 }
 
 // Utility functions for processing location data
