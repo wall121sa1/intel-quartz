@@ -50,8 +50,8 @@ export const DEFAULT_MAP_CONFIG: MapConfig = {
   defaultZoom: 11,
   clusterRadius: 50,
   tileLayer: {
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-    attribution: '© Esri, HERE, Garmin, FAO, NOAA, USGS, © OpenStreetMap contributors'
+    url: 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png',
+    attribution: '© OpenStreetMap contributors © CARTO'
   }
 }
 

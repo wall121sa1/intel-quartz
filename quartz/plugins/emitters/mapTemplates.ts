@@ -17,6 +17,34 @@ export function generateHead(title: string): string {
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <style>
+    .marker-cluster-small {
+    background-color: rgba(0, 255, 127, 0.4);
+    color: #fff;
+}
+.marker-cluster-small div {
+    background-color: rgba(0, 255, 127, 0.7);
+    color: #fff;
+}
+
+.marker-cluster-medium {
+    background-color: rgba(0, 191, 255, 0.4);
+    color: #fff;
+}
+.marker-cluster-medium div {
+    background-color: rgba(0, 191, 255, 0.7);
+    color: #fff;
+}
+
+.marker-cluster-large {
+    background-color: rgba(255, 0, 255, 0.4);
+    color: #fff;
+}
+.marker-cluster-large div {
+    background-color: rgba(255, 0, 255, 0.7);
+    color: #fff;
+}
+    </style>
   `
 }
 
