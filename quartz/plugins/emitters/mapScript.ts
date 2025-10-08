@@ -221,7 +221,7 @@ export function generateMapScript(
         if (loc.topics) {
           loc.topics.forEach(topic => {
             // Filter out non-location topics
-            if (!['OTC', 'CryptoToCash', 'P2P'].includes(topic)) {
+            if (!['OTC', 'CryptoToCash', 'P2P','ATM'].includes(topic)) {
               countries.add(topic);
             }
           });

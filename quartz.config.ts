@@ -94,7 +94,7 @@ const config: QuartzConfig = {
       Plugin.CustomOgImages(),
       Plugin.MapPage({footerConfig: {
         disclaimer: "The information contained in this map is sensitive. Unauthorized access, use, or distribution is strictly prohibited.",
-        copyright: "Crystal Intelligence 2025. All rights reserved."
+        copyright: "Crystal Intelligence. All rights reserved."
       }}),
     ],
   },
