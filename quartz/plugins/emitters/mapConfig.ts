@@ -50,16 +50,13 @@ export const DEFAULT_MAP_CONFIG: MapConfig = {
   defaultZoom: 11,
   clusterRadius: 50,
   tileLayer: {
-    url: 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png',
+    url: 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png',
     attribution: '© OpenStreetMap contributors © CARTO'
   }
 }
 
 // Export DEFAULT_FILTER_PRESETS - This was missing!
 export const DEFAULT_FILTER_PRESETS: FilterPreset[] = [
-  { name: "Hong Kong OTC", tags: ["P2PDesk"], topics: ["Hong Kong"] },
-  { name: "Dubai OTC", tags: ["P2PDesk"], topics: ["Dubai", "UAE"] },
-  { name: "All P2P Desks", tags: ["P2PDesk"], topics: [] },
   { name: "SENSITIVE", classification: "SENSITIVE", tags: [], topics: [] },
   { name: "PUBLIC", classification: "PUBLIC", tags: [], topics: [] }
 ]
