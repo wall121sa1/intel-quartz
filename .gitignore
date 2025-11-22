@@ -16,3 +16,4 @@ bin
 include
 lib
 vault_data
+app.db

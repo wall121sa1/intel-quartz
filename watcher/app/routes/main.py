@@ -5,7 +5,6 @@ from app.models import Article
 from app.services.manager import FeedManager
 from app.services.storage import StorageService
 
-# Define Blueprint here
 bp = Blueprint('main', __name__)
 
 @bp.route('/')
@@ -42,9 +41,12 @@ def approve_article(id):
     
     article.title = request.form.get('title')
     article.content_edited = request.form.get('content')
+    
+    # Save comma-separated lists from hidden inputs
     article.organizations = request.form.get('orgs')
     article.people = request.form.get('people')
     article.locations = request.form.get('locs')
+    article.events = request.form.get('events') # Capture Events
     
     try:
         file_path = StorageService.save_article_to_disk(
