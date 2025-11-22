@@ -1,0 +1,10 @@
+flask
+flask-sqlalchemy
+flask-login
+flask-migrate
+flask-apscheduler
+feedparser
+spacy
+newspaper3k
+lxml_html_clean
+python-slugify

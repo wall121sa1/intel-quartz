@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<form action="{{ url_for('main.approve_article', id=article.id) }}" method="post">
+    
+    <div class="row mb-3 align-items-center">
+        <div class="col-md-8">
+            <small class="text-muted">Reviewing: {{ article.source.name }}</small>
+            <input type="text" name="title" class="form-control form-control-lg fw-bold" value="{{ article.title }}">
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{{ url_for('main.reject_article', id=article.id) }}" class="btn btn-outline-danger">Reject</a>
+            <button type="submit" class="btn btn-success">Publish to Obsidian</button>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Metadata Editor (Left Column) -->
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <div class="card-header bg-light">Detected Entities (YAML)</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Locations</label>
+                        <input type="text" name="locs" class="form-control" value="{{ article.locations or '' }}">
+                        <div class="form-text">Comma separated</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Organizations</label>
+                        <input type="text" name="orgs" class="form-control" value="{{ article.organizations or '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">People</label>
+                        <input type="text" name="people" class="form-control" value="{{ article.people or '' }}">
+                    </div>
+                    <hr>
+                    <p class="small text-muted">Original Link: <a href="{{ article.url }}" target="_blank">Open Source</a></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content Editor (Right Column) -->
+        <div class="col-md-8">
+            <div class="card h-100">
+                <div class="card-header">Article Body (Markdown)</div>
+                <div class="card-body p-0">
+                    <!-- Simple textarea for now, can be upgraded to a JS Markdown editor later -->
+                    <textarea name="content" class="form-control border-0" style="height: 600px; font-family: monospace; padding: 20px;">{{ article.content_edited }}</textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</form>
+{% endblock %}

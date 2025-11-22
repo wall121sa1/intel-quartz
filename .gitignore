@@ -11,3 +11,8 @@ private/
 replit.nix
 content
 docs
+__pycache__
+bin
+include
+lib
+vault_data

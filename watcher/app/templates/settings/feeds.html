@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Feed Management</h1>
+
+<div class="row mt-4">
+    <!-- Add Feed Form -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">Add New Source</div>
+            <div class="card-body">
+                <form action="{{ url_for('settings.add_feed') }}" method="post">
+                    <div class="mb-3">
+                        <label class="form-label">Source Name</label>
+                        <input type="text" name="name" class="form-control" placeholder="e.g. BBC News" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">RSS URL</label>
+                        <input type="url" name="url" class="form-control" placeholder="https://..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Reliability</label>
+                        <select name="reliability" class="form-select">
+                            <option value="High">High</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Low">Low</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Add Feed</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feed List -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Reliability</th>
+                            <th>URL</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for feed in feeds %}
+                        <tr>
+                            <td>{{ feed.name }}</td>
+                            <td>{{ feed.reliability }}</td>
+                            <td class="text-truncate" style="max-width: 150px;">{{ feed.url }}</td>
+                            <td>
+                                <a href="{{ url_for('settings.delete_feed', id=feed.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete this feed?')">Delete</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
