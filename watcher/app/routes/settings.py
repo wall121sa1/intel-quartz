@@ -1,9 +1,12 @@
+from app.models import db
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
-from app import db
-from app.models import Feed, User
+from app.models import Feed, User, StandardTag
+from app.models import db, Feed, User, StandardTag, CustomEntity
+from app.services.nlp import NLPService
+import csv
+import io
 
-# Define Blueprint here
 bp = Blueprint('settings', __name__)
 
 # --- FEEDS ---
@@ -43,6 +46,48 @@ def delete_feed(id):
     db.session.commit()
     flash('Feed deleted')
     return redirect(url_for('settings.feeds'))
+
+# --- STANDARD TAGS (NEW) ---
+
+@bp.route('/tags')
+@login_required
+def tags():
+    # Allow editors to view, but UI will hide add buttons if we strictly enforce admin
+    tags = StandardTag.query.order_by(StandardTag.name).all()
+    return render_template('settings/tags.html', tags=tags)
+
+@bp.route('/tags/add', methods=['POST'])
+@login_required
+def add_tag():
+    if current_user.role != 'admin':
+        flash('Admin rights required')
+        return redirect(url_for('settings.tags'))
+        
+    name = request.form.get('name').strip()
+    if not name: 
+        return redirect(url_for('settings.tags'))
+
+    existing = StandardTag.query.filter_by(name=name).first()
+    if existing:
+        flash('Tag already exists')
+        return redirect(url_for('settings.tags'))
+
+    db.session.add(StandardTag(name=name))
+    db.session.commit()
+    flash('Topic Tag added')
+    return redirect(url_for('settings.tags'))
+
+@bp.route('/tags/delete/<int:id>')
+@login_required
+def delete_tag(id):
+    if current_user.role != 'admin':
+        return redirect(url_for('settings.tags'))
+        
+    tag = StandardTag.query.get_or_404(id)
+    db.session.delete(tag)
+    db.session.commit()
+    flash('Topic Tag deleted')
+    return redirect(url_for('settings.tags'))
 
 # --- USERS ---
 @bp.route('/users')
@@ -88,3 +133,77 @@ def delete_user(id):
     db.session.commit()
     flash('User deleted')
     return redirect(url_for('settings.users'))
+
+@bp.route('/dictionary')
+@login_required
+def dictionary():
+    # Group by label for easier viewing
+    entities = CustomEntity.query.order_by(CustomEntity.label, CustomEntity.text).all()
+    return render_template('settings/dictionary.html', entities=entities)
+
+@bp.route('/dictionary/add', methods=['POST'])
+@login_required
+def add_custom_entity():
+    text = request.form.get('text').strip()
+    label = request.form.get('label')
+    
+    if text and label:
+        existing = CustomEntity.query.filter_by(text=text, label=label).first()
+        if not existing:
+            db.session.add(CustomEntity(text=text, label=label))
+            db.session.commit()
+            # Reload NLP model to apply change immediately
+            NLPService.reload_model()
+            flash(f'Added rule: "{text}" -> {label}')
+        else:
+            flash('Rule already exists')
+            
+    return redirect(url_for('settings.dictionary'))
+
+@bp.route('/dictionary/delete/<int:id>')
+@login_required
+def delete_custom_entity(id):
+    entity = CustomEntity.query.get_or_404(id)
+    db.session.delete(entity)
+    db.session.commit()
+    NLPService.reload_model()
+    flash('Rule deleted')
+    return redirect(url_for('settings.dictionary'))
+
+@bp.route('/dictionary/import', methods=['POST'])
+@login_required
+def import_dictionary():
+    """
+    Expects a CSV file with headers: text, label
+    """
+    file = request.files.get('file')
+    if not file:
+        flash('No file uploaded')
+        return redirect(url_for('settings.dictionary'))
+
+    try:
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_input = csv.DictReader(stream)
+        
+        added_count = 0
+        for row in csv_input:
+            text = row.get('text', '').strip()
+            label = row.get('label', '').strip().upper()
+            
+            # Basic validation
+            if text and label in ['ORG', 'PERSON', 'LOC', 'GPE', 'EVENT']:
+                exists = CustomEntity.query.filter_by(text=text, label=label).first()
+                if not exists:
+                    db.session.add(CustomEntity(text=text, label=label))
+                    added_count += 1
+        
+        db.session.commit()
+        if added_count > 0:
+            NLPService.reload_model()
+            
+        flash(f'Successfully imported {added_count} new rules.')
+        
+    except Exception as e:
+        flash(f'Error processing CSV: {str(e)}')
+
+    return redirect(url_for('settings.dictionary'))

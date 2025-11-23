@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Topic Tag Management</h1>
+<p class="text-muted">Standardize the taxonomy used for articles.</p>
+
+<div class="row mt-4">
+    <!-- Add Tag Form -->
+    {% if current_user.role == 'admin' %}
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">Add New Topic</div>
+            <div class="card-body">
+                <form action="{{ url_for('settings.add_tag') }}" method="post">
+                    <div class="mb-3">
+                        <label class="form-label">Tag Name</label>
+                        <input type="text" name="name" class="form-control" placeholder="e.g. Economics" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Add Tag</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Tag List -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                    {% for tag in tags %}
+                    <span class="badge bg-light text-dark border p-2">
+                        {{ tag.name }}
+                        {% if current_user.role == 'admin' %}
+                        <a href="{{ url_for('settings.delete_tag', id=tag.id) }}" class="text-danger ms-2 text-decoration-none fw-bold" onclick="return confirm('Delete tag?')">&times;</a>
+                        {% endif %}
+                    </span>
+                    {% else %}
+                    <p class="text-muted">No tags defined yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

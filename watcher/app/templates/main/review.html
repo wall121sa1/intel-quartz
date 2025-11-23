@@ -35,6 +35,7 @@
     .tag-org { background-color: #f3e5f5; color: #4a148c; border: 1px solid #ce93d8; }
     .tag-person { background-color: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
     .tag-event { background-color: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
+    .tag-tag { background-color: #fff8e1; color: #f57f17; border: 1px solid #ffe082; } /* New Color for Topics */
 
     /* Custom Context Menu */
     #context-menu {
@@ -47,17 +48,8 @@
         border-radius: 4px;
         min-width: 150px;
     }
-    #context-menu ul {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
-    #context-menu li {
-        padding: 8px 15px;
-        cursor: pointer;
-        border-bottom: 1px solid #eee;
-        font-size: 0.9rem;
-    }
+    #context-menu ul { list-style: none; padding: 0; margin: 0; }
+    #context-menu li { padding: 8px 15px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 0.9rem; }
     #context-menu li:hover { background-color: #f8f9fa; }
     #context-menu li:last-child { border-bottom: none; }
 </style>
@@ -70,7 +62,7 @@
             <input type="text" name="title" class="form-control form-control-lg fw-bold" value="{{ article.title }}">
         </div>
         <div class="col-md-4 text-end">
-            <a href="{{ url_for('main.reject_article', id=article.id) }}" class="btn btn-outline-danger">Reject</a>
+            <a href="{{ url_for('main.dismiss_article', id=article.id) }}" class="btn btn-outline-danger">Dismiss</a>
             <button type="submit" class="btn btn-success">Publish to Obsidian</button>
         </div>
     </div>
@@ -79,34 +71,42 @@
         <!-- Metadata Editor (Left Column) -->
         <div class="col-md-4">
             <div class="card mb-3">
-                <div class="card-header bg-light">Detected Entities</div>
+                <div class="card-header bg-light">Metadata</div>
                 <div class="card-body">
                     
-                    <!-- Locations -->
+                    <!-- Topic Tags (NEW) -->
+                    <label class="form-label fw-bold small text-muted">Topic Tags</label>
+                    <div class="input-group mb-2">
+                        <input type="text" id="tag-input-box" class="form-control form-control-sm" list="standard-tags-list" placeholder="Add topic...">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="addTagFromInput()">Add</button>
+                    </div>
+                    <datalist id="standard-tags-list">
+                        {% for stag in standard_tags %}
+                        <option value="{{ stag.name }}">
+                        {% endfor %}
+                    </datalist>
+                    
+                    <div id="container-tags" class="tag-container"></div>
+                    <input type="hidden" name="tags" id="input-tags" value="{{ article.tags or '' }}">
+                    <hr>
+
+                    <!-- Entities -->
                     <label class="form-label fw-bold small text-muted">Locations</label>
                     <div id="container-locs" class="tag-container"></div>
                     <input type="hidden" name="locs" id="input-locs" value="{{ article.locations or '' }}">
 
-                    <!-- Organizations -->
                     <label class="form-label fw-bold small text-muted">Organizations</label>
                     <div id="container-orgs" class="tag-container"></div>
                     <input type="hidden" name="orgs" id="input-orgs" value="{{ article.organizations or '' }}">
 
-                    <!-- People -->
                     <label class="form-label fw-bold small text-muted">People</label>
                     <div id="container-people" class="tag-container"></div>
                     <input type="hidden" name="people" id="input-people" value="{{ article.people or '' }}">
 
-                    <!-- Events -->
                     <label class="form-label fw-bold small text-muted">Events</label>
                     <div id="container-events" class="tag-container"></div>
                     <input type="hidden" name="events" id="input-events" value="{{ article.events or '' }}">
 
-                    <hr>
-                    <div class="alert alert-info small">
-                        <i class="bi bi-info-circle"></i> 
-                        Highlight text in the editor and <b>Right Click</b> to convert it into an entity and a [[WikiLink]].
-                    </div>
                 </div>
             </div>
         </div>
@@ -119,7 +119,6 @@
                     <small class="float-end text-muted">Markdown Supported</small>
                 </div>
                 <div class="card-body p-0">
-                    <!-- We use a textarea id 'article-content' to perform the replacements -->
                     <textarea id="article-content" name="content" class="form-control border-0" 
                     style="height: 700px; font-family: monospace; padding: 20px; resize: none;">{{ article.content_edited }}</textarea>
                 </div>
@@ -145,16 +144,15 @@
         locs: new Set(),
         orgs: new Set(),
         people: new Set(),
-        events: new Set()
+        events: new Set(),
+        tags: new Set() // Added Tags
     };
 
-    // To handle text replacement, we need to track the exact indices of the selection
     let selectionIndices = { start: 0, end: 0 };
 
     // --- 2. Initialization ---
     document.addEventListener('DOMContentLoaded', () => {
-        // Load initial data
-        ['locs', 'orgs', 'people', 'events'].forEach(type => {
+        ['locs', 'orgs', 'people', 'events', 'tags'].forEach(type => {
             const rawVal = document.getElementById(`input-${type}`).value;
             if (rawVal) {
                 rawVal.split(',').forEach(item => {
@@ -168,7 +166,7 @@
     // --- 3. Rendering Logic ---
     function renderTags(type) {
         const container = document.getElementById(`container-${type}`);
-        container.innerHTML = ''; // Clear
+        container.innerHTML = ''; 
         
         entityState[type].forEach(item => {
             const tag = document.createElement('span');
@@ -179,8 +177,6 @@
             `;
             container.appendChild(tag);
         });
-
-        // Update Hidden Input
         document.getElementById(`input-${type}`).value = Array.from(entityState[type]).join(',');
     }
 
@@ -192,38 +188,47 @@
     function addEntity(type, item) {
         if(!item) return;
         let cleanItem = item.trim();
-        // Clean brackets for the Tag Cloud view (we want "London", not "[[London]]")
         cleanItem = cleanItem.replace(/^\[\[|\]\]$/g, ''); 
-        
         entityState[type].add(cleanItem);
         renderTags(type);
-        return cleanItem; // Return clean version
+        return cleanItem;
     }
 
-    // --- 4. Context Menu Logic ---
+    // --- 4. Topic Tag Specific Logic ---
+    function addTagFromInput() {
+        const input = document.getElementById('tag-input-box');
+        if(input.value) {
+            addEntity('tags', input.value);
+            input.value = ''; // Clear input
+        }
+    }
+    
+    // Allow 'Enter' key to add tag
+    document.getElementById('tag-input-box').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addTagFromInput();
+        }
+    });
+
+    // --- 5. Context Menu Logic ---
     const contextMenu = document.getElementById('context-menu');
     const contentArea = document.getElementById('article-content');
     let currentSelection = "";
 
-    // Show Menu
     contentArea.addEventListener('contextmenu', (e) => {
-        // Use selectionStart/End to get text from Textarea specifically
         const start = contentArea.selectionStart;
         const end = contentArea.selectionEnd;
         const selection = contentArea.value.substring(start, end).trim();
         
         if (selection.length > 0) {
             e.preventDefault();
-            
-            // Save state for the click handler
             currentSelection = selection;
             selectionIndices = { start: start, end: end };
             
-            // Update preview
             const preview = selection.length > 15 ? selection.substring(0, 15) + '...' : selection;
             document.getElementById('selected-text-preview').innerText = preview;
 
-            // Position menu
             contextMenu.style.display = 'block';
             contextMenu.style.left = `${e.pageX}px`;
             contextMenu.style.top = `${e.pageY}px`;
@@ -232,39 +237,31 @@
         }
     });
 
-    // Hide Menu
     document.addEventListener('click', (e) => {
         if (contextMenu.style.display === 'block') {
             contextMenu.style.display = 'none';
         }
     });
 
-    // Handle Menu Selection
     function addEntityFromMenu(type) {
         if (currentSelection) {
-            // 1. Add to Tag Cloud
             const cleanEntity = addEntity(type, currentSelection);
             
-            // 2. Inject [[Brackets]] into the text area
             const start = selectionIndices.start;
             const end = selectionIndices.end;
             const originalText = contentArea.value;
             
-            // Check if already bracketed to avoid [[[[text]]]]
             let replacement = currentSelection;
             if (!replacement.startsWith('[[') && !replacement.endsWith(']]')) {
                 replacement = `[[${cleanEntity}]]`;
             }
 
-            // Perform Replacement
             contentArea.value = originalText.substring(0, start) + replacement + originalText.substring(end);
 
-            // Optional: Visual feedback
             const container = document.getElementById(`container-${type}`);
             container.style.backgroundColor = "#ffffd6";
             setTimeout(() => container.style.backgroundColor = "#fff", 300);
         }
     }
-
 </script>
 {% endblock %}

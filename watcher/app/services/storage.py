@@ -40,6 +40,8 @@ date: {article.pub_date.strftime('%Y-%m-%d %H:%M')}
 added: {article.added_date.strftime('%Y-%m-%d %H:%M')}
 source: "{feed_name}"
 reliability: "{reliability}"
+tags:
+{yaml_list(article.tags)}
 organizations:
 {yaml_list(article.organizations)}
 people:

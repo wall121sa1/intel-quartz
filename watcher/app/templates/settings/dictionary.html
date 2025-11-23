@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>NLP Dictionary</h1>
+<p class="text-muted">Teach the AI new entities. These exact matches override the AI's guesses.</p>
+
+<div class="row mt-4">
+    <!-- Add Single Rule -->
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">Add Single Rule</div>
+            <div class="card-body">
+                <form action="{{ url_for('settings.add_custom_entity') }}" method="post">
+                    <div class="mb-3">
+                        <label class="form-label">Text / Phrase</label>
+                        <input type="text" name="text" class="form-control" placeholder="e.g. Project Apollo" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Entity Type</label>
+                        <select name="label" class="form-select">
+                            <option value="ORG">Organization</option>
+                            <option value="PERSON">Person</option>
+                            <option value="LOC">Location</option>
+                            <option value="EVENT">Event</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Add Rule</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Bulk Import -->
+        <div class="card">
+            <div class="card-header">Bulk Import (CSV)</div>
+            <div class="card-body">
+                <p class="small text-muted">Upload a CSV with headers: <code>text,label</code></p>
+                <form action="{{ url_for('settings.import_dictionary') }}" method="post" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <input type="file" name="file" class="form-control" accept=".csv" required>
+                    </div>
+                    <button type="submit" class="btn btn-outline-secondary w-100">Upload CSV</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- List of Rules -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Phrase</th>
+                            <th>Type</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entity in entities %}
+                        <tr>
+                            <td>{{ entity.text }}</td>
+                            <td>
+                                <span class="badge 
+                                    {% if entity.label == 'ORG' %}bg-info text-dark
+                                    {% elif entity.label == 'PERSON' %}bg-success
+                                    {% elif entity.label == 'EVENT' %}bg-warning text-dark
+                                    {% else %}bg-secondary{% endif %}">
+                                    {{ entity.label }}
+                                </span>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('settings.delete_custom_entity', id=entity.id) }}" class="text-danger" onclick="return confirm('Delete this rule?')"><i class="bi bi-trash"></i></a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="text-center">No custom rules defined.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

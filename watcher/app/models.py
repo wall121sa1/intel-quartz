@@ -17,6 +17,11 @@ class User(UserMixin, db.Model):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
+class StandardTag(db.Model):
+    """List of approved topic tags managed by Admin"""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+
 class Feed(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
@@ -24,6 +29,18 @@ class Feed(db.Model):
     reliability = db.Column(db.String(50))
     vault_id = db.Column(db.String(50), default='default')
     articles = db.relationship('Article', backref='source', lazy='dynamic')
+
+class CustomEntity(db.Model):
+    """
+    User-defined dictionary for the NLP Rule Engine.
+    These overrides the AI's default guesses.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    text = db.Column(db.String(100), nullable=False) # e.g., "Intel Quartz"
+    label = db.Column(db.String(20), nullable=False) # e.g., "ORG", "EVENT"
+    
+    # Composite unique constraint to prevent duplicates
+    __table_args__ = (db.UniqueConstraint('text', 'label', name='_text_label_uc'),)
 
 class Article(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -41,7 +58,8 @@ class Article(db.Model):
     locations = db.Column(db.Text) 
     organizations = db.Column(db.Text)
     people = db.Column(db.Text)
-    events = db.Column(db.Text) # NEW COLUMN
+    events = db.Column(db.Text)
+    tags = db.Column(db.Text) # NEW: Comma-separated list of topic tags
 
     status = db.Column(db.String(20), default='NEW', index=True)
     vault_id = db.Column(db.String(50), default='default')

@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-md-8">
+<div class="row mb-4 align-items-center">
+    <div class="col-md-6">
         <h1>Review Queue</h1>
     </div>
-    <div class="col-md-4 text-end">
+    <div class="col-md-6 text-end">
         <a href="{{ url_for('main.fetch_now') }}" class="btn btn-success">
-            <i class="bi bi-cloud-download"></i> Fetch New Articles
+            <i class="bi bi-cloud-download"></i> Fetch New
         </a>
     </div>
 </div>
@@ -23,7 +23,7 @@
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card bg-secondary text-white">
+        <div class="card bg-success text-white"> <!-- Changed to Green for Approved -->
             <div class="card-body">
                 <h3>{{ stats.approved }}</h3>
                 <p class="mb-0">Saved to Obsidian</p>
@@ -31,48 +31,77 @@
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card bg-danger text-white">
+        <div class="card bg-secondary text-white"> <!-- Changed to Gray for Rejected -->
             <div class="card-body">
                 <h3>{{ stats.rejected }}</h3>
-                <p class="mb-0">Rejected</p>
+                <p class="mb-0">Dismissed</p>
             </div>
         </div>
     </div>
 </div>
 
 <!-- The Queue Table -->
-<div class="card">
-    <div class="card-body">
-        <table class="table table-hover">
-            <thead>
-                <tr>
-                    <th>Source</th>
-                    <th>Title</th>
-                    <th>Date</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for article in queue %}
-                <tr>
-                    <td><span class="badge bg-info">{{ article.source.name }}</span></td>
-                    <td>
-                        <a href="{{ url_for('main.review', id=article.id) }}" class="text-decoration-none fw-bold">
-                            {{ article.title }}
-                        </a>
-                    </td>
-                    <td>{{ article.pub_date.strftime('%Y-%m-%d') }}</td>
-                    <td>
-                        <a href="{{ url_for('main.review', id=article.id) }}" class="btn btn-sm btn-outline-primary">Review</a>
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="4" class="text-center py-4">No new articles found. Try fetching!</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<form action="{{ url_for('main.dismiss_bulk') }}" method="post" id="bulkForm">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <input type="checkbox" id="selectAll" class="form-check-input me-2">
+                <span class="fw-bold">Select All</span>
+            </div>
+            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Dismiss selected items?')">
+                <i class="bi bi-trash"></i> Dismiss Selected
+            </button>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 40px;"></th>
+                        <th>Source</th>
+                        <th>Title</th>
+                        <th>Date</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for article in queue %}
+                    <tr>
+                        <td class="align-middle text-center">
+                            <input type="checkbox" name="article_ids" value="{{ article.id }}" class="form-check-input item-check">
+                        </td>
+                        <td class="align-middle"><span class="badge bg-info text-dark">{{ article.source.name }}</span></td>
+                        <td class="align-middle">
+                            <a href="{{ url_for('main.review', id=article.id) }}" class="text-decoration-none fw-bold text-dark">
+                                {{ article.title }}
+                            </a>
+                        </td>
+                        <td class="align-middle">{{ article.pub_date.strftime('%Y-%m-%d') }}</td>
+                        <td class="align-middle text-end">
+                            <a href="{{ url_for('main.review', id=article.id) }}" class="btn btn-sm btn-primary">Review</a>
+                            <a href="{{ url_for('main.dismiss_article', id=article.id) }}" class="btn btn-sm btn-outline-secondary ms-1" title="Dismiss">
+                                <i class="bi bi-x-lg"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center py-5 text-muted">
+                            <i class="bi bi-check-circle fs-1 d-block mb-2"></i>
+                            No new articles. You are all caught up!
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
-</div>
+</form>
+
+<script>
+    // Select All Logic
+    document.getElementById('selectAll').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('.item-check');
+        checkboxes.forEach(cb => cb.checked = this.checked);
+    });
+</script>
 {% endblock %}

@@ -1,7 +1,7 @@
+from app.models import db
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required
-from app import db
-from app.models import Article
+from app.models import Article, StandardTag
 from app.services.manager import FeedManager
 from app.services.storage import StorageService
 
@@ -15,7 +15,7 @@ def dashboard():
         'approved': Article.query.filter_by(status='APPROVED').count(),
         'rejected': Article.query.filter_by(status='REJECTED').count()
     }
-    queue = Article.query.filter_by(status='PENDING').order_by(Article.pub_date.desc()).limit(50).all()
+    queue = Article.query.filter_by(status='PENDING').order_by(Article.pub_date.desc()).limit(100).all()
     return render_template('main/dashboard.html', stats=stats, queue=queue)
 
 @bp.route('/fetch-now')
@@ -28,11 +28,15 @@ def fetch_now():
         flash(f"Error during sync: {str(e)}")
     return redirect(url_for('main.dashboard'))
 
+# --- REVIEW ---
+
 @bp.route('/review/<int:id>')
 @login_required
 def review(id):
     article = Article.query.get_or_404(id)
-    return render_template('main/review.html', article=article)
+    # Fetch standard tags for autocomplete
+    standard_tags = StandardTag.query.order_by(StandardTag.name).all()
+    return render_template('main/review.html', article=article, standard_tags=standard_tags)
 
 @bp.route('/approve/<int:id>', methods=['POST'])
 @login_required
@@ -41,12 +45,11 @@ def approve_article(id):
     
     article.title = request.form.get('title')
     article.content_edited = request.form.get('content')
-    
-    # Save comma-separated lists from hidden inputs
     article.organizations = request.form.get('orgs')
     article.people = request.form.get('people')
     article.locations = request.form.get('locs')
-    article.events = request.form.get('events') # Capture Events
+    article.events = request.form.get('events')
+    article.tags = request.form.get('tags') # Save Tags
     
     try:
         file_path = StorageService.save_article_to_disk(
@@ -64,11 +67,45 @@ def approve_article(id):
 
     return redirect(url_for('main.dashboard'))
 
-@bp.route('/reject/<int:id>')
+# --- ACTIONS ---
+
+@bp.route('/dismiss/<int:id>')
 @login_required
-def reject_article(id):
+def dismiss_article(id):
     article = Article.query.get_or_404(id)
     article.status = 'REJECTED'
     db.session.commit()
-    flash('Article rejected')
+    flash('Article dismissed')
     return redirect(url_for('main.dashboard'))
+
+@bp.route('/dismiss-bulk', methods=['POST'])
+@login_required
+def dismiss_bulk():
+    article_ids = request.form.getlist('article_ids')
+    if not article_ids:
+        flash('No articles selected')
+        return redirect(url_for('main.dashboard'))
+    
+    count = Article.query.filter(Article.id.in_(article_ids)).update(
+        {Article.status: 'REJECTED'}, 
+        synchronize_session=False
+    )
+    db.session.commit()
+    flash(f'{count} articles dismissed')
+    return redirect(url_for('main.dashboard'))
+
+@bp.route('/restore/<int:id>')
+@login_required
+def restore_article(id):
+    article = Article.query.get_or_404(id)
+    article.status = 'PENDING'
+    db.session.commit()
+    flash('Article restored to queue')
+    return redirect(url_for('main.history'))
+
+@bp.route('/history')
+@login_required
+def history():
+    approved = Article.query.filter_by(status='APPROVED').order_by(Article.added_date.desc()).limit(50).all()
+    rejected = Article.query.filter_by(status='REJECTED').order_by(Article.added_date.desc()).limit(50).all()
+    return render_template('main/history.html', approved=approved, rejected=rejected)
