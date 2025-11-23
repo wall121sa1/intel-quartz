@@ -111,20 +111,38 @@
             </div>
         </div>
 
-        <!-- Content Editor (Right Column) -->
+     <!-- Content Editor (Right Column) -->
         <div class="col-md-8">
-            <div class="card h-100">
+            
+            <!-- Main English Editor -->
+            <div class="card h-100 mb-3">
                 <div class="card-header">
-                    Article Body
-                    <small class="float-end text-muted">Markdown Supported</small>
+                    Article Body (English / Translated)
+                    {% if article.language != 'en' %}
+                    <span class="badge bg-warning text-dark float-end">Translated from {{ article.language|upper }}</span>
+                    {% endif %}
                 </div>
                 <div class="card-body p-0">
                     <textarea id="article-content" name="content" class="form-control border-0" 
-                    style="height: 700px; font-family: monospace; padding: 20px; resize: none;">{{ article.content_edited }}</textarea>
+                    style="height: 600px; font-family: monospace; padding: 20px; resize: none;">{{ article.content_edited }}</textarea>
                 </div>
             </div>
+
+            <!-- Original Text (Collapsible) -->
+            {% if article.language != 'en' and article.content_original %}
+            <div class="card">
+                <div class="card-header bg-secondary text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#originalText">
+                    <i class="bi bi-translate"></i> Show Original {{ article.language|upper }} Text
+                </div>
+                <div id="originalText" class="collapse">
+                    <div class="card-body bg-light text-muted" style="max-height: 300px; overflow-y: auto; font-size: 0.9rem;">
+                        {{ article.content_original }}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
         </div>
-    </div>
 </form>
 
 <!-- Context Menu HTML -->

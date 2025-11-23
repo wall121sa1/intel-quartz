@@ -51,15 +51,19 @@ class Article(db.Model):
     pub_date = db.Column(db.DateTime)
     added_date = db.Column(db.DateTime, default=datetime.utcnow)
     
-    content_raw = db.Column(db.Text)
-    content_edited = db.Column(db.Text)
+    content_raw = db.Column(db.Text)    # Will store the English/Translated version for processing
+    content_edited = db.Column(db.Text) # The user-edited English version
+    
+    # NEW COLUMNS FOR TRANSLATION
+    language = db.Column(db.String(10), default='en') # 'en', 'fa', 'ru'
+    content_original = db.Column(db.Text) # The original Farsi/Russian text
     
     # Metadata
     locations = db.Column(db.Text) 
     organizations = db.Column(db.Text)
     people = db.Column(db.Text)
     events = db.Column(db.Text)
-    tags = db.Column(db.Text) # NEW: Comma-separated list of topic tags
+    tags = db.Column(db.Text)
 
     status = db.Column(db.String(20), default='NEW', index=True)
     vault_id = db.Column(db.String(50), default='default')
