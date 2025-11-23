@@ -1,7 +1,7 @@
 from app.models import db, Feed, Article
 from app.services.scraper import ScraperService
 from app.services.nlp import NLPService
-from app.services.translator import TranslatorService # NEW IMPORT
+from app.services.translator import TranslatorService
 from datetime import datetime
 
 class FeedManager:
@@ -33,9 +33,15 @@ class FeedManager:
                     
                     # 3. Translate (if not English)
                     content_english = content_original
+                    title_english = entry.title # Default to original
+                    
                     if detected_lang != 'en':
-                        print(f"Detected {detected_lang}. Translating...")
+                        print(f"Detected {detected_lang}. Translating content and title...")
                         content_english = TranslatorService.translate(content_original, detected_lang)
+                        title_english = TranslatorService.translate(entry.title, detected_lang)
+                        
+                        # Prepend original title to original content for reference
+                        content_original = f"# {entry.title}\n\n{content_original}"
 
                     # 4. Run NLP (On the English text)
                     nlp_result = NLPService.process_text(content_english)
@@ -43,16 +49,16 @@ class FeedManager:
                     # 5. Save
                     new_article = Article(
                         feed_id=feed.id,
-                        title=entry.title, # We could translate title too, but let's keep it simple
+                        title=title_english,            # Saved as English (used for filename)
                         url=entry.link,
                         pub_date=ScraperService.normalize_date(entry),
                         added_date=datetime.utcnow(),
                         
-                        content_raw=content_english,    # We store English as the main working text
+                        content_raw=content_english,    
                         content_edited=nlp_result['content_with_links'],
                         
-                        language=detected_lang,         # Store 'fa' or 'ru'
-                        content_original=content_original, # Store original text
+                        language=detected_lang,         
+                        content_original=content_original, 
                         
                         organizations=",".join(nlp_result['entities']['orgs']),
                         people=",".join(nlp_result['entities']['people']),

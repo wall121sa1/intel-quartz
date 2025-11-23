@@ -21,21 +21,26 @@
         display: inline-flex;
         align-items: center;
         user-select: none;
+        transition: all 0.2s;
     }
+    .entity-tag:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    
     .entity-tag .remove-btn {
-        margin-left: 6px;
+        margin-left: 8px;
         cursor: pointer;
         font-weight: bold;
-        opacity: 0.6;
+        opacity: 0.5;
+        padding: 0 4px;
+        border-radius: 50%;
     }
-    .entity-tag .remove-btn:hover { opacity: 1; }
+    .entity-tag .remove-btn:hover { opacity: 1; background: rgba(0,0,0,0.1); color: #c62828; }
 
     /* Color coding per type */
     .tag-loc { background-color: #e3f2fd; color: #0d47a1; border: 1px solid #90caf9; }
     .tag-org { background-color: #f3e5f5; color: #4a148c; border: 1px solid #ce93d8; }
     .tag-person { background-color: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
     .tag-event { background-color: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
-    .tag-tag { background-color: #fff8e1; color: #f57f17; border: 1px solid #ffe082; } /* New Color for Topics */
+    .tag-tag { background-color: #fff8e1; color: #f57f17; border: 1px solid #ffe082; }
 
     /* Custom Context Menu */
     #context-menu {
@@ -59,6 +64,7 @@
     <div class="row mb-3 align-items-center">
         <div class="col-md-8">
             <small class="text-muted">Reviewing: {{ article.source.name }}</small>
+            <!-- Title Input (Now Translated) -->
             <input type="text" name="title" class="form-control form-control-lg fw-bold" value="{{ article.title }}">
         </div>
         <div class="col-md-4 text-end">
@@ -74,17 +80,19 @@
                 <div class="card-header bg-light">Metadata</div>
                 <div class="card-body">
                     
-                    <!-- Topic Tags (NEW) -->
+                    <!-- Topic Tags -->
                     <label class="form-label fw-bold small text-muted">Topic Tags</label>
                     <div class="input-group mb-2">
                         <input type="text" id="tag-input-box" class="form-control form-control-sm" list="standard-tags-list" placeholder="Add topic...">
                         <button class="btn btn-sm btn-outline-secondary" type="button" onclick="addTagFromInput()">Add</button>
                     </div>
+                    {% if standard_tags %}
                     <datalist id="standard-tags-list">
                         {% for stag in standard_tags %}
                         <option value="{{ stag.name }}">
                         {% endfor %}
                     </datalist>
+                    {% endif %}
                     
                     <div id="container-tags" class="tag-container"></div>
                     <input type="hidden" name="tags" id="input-tags" value="{{ article.tags or '' }}">
@@ -111,13 +119,12 @@
             </div>
         </div>
 
-     <!-- Content Editor (Right Column) -->
+        <!-- Content Editor (Right Column) -->
         <div class="col-md-8">
             
-            <!-- Main English Editor -->
             <div class="card h-100 mb-3">
                 <div class="card-header">
-                    Article Body (English / Translated)
+                    Article Body
                     {% if article.language != 'en' %}
                     <span class="badge bg-warning text-dark float-end">Translated from {{ article.language|upper }}</span>
                     {% endif %}
@@ -128,7 +135,7 @@
                 </div>
             </div>
 
-            <!-- Original Text (Collapsible) -->
+            <!-- Original Text -->
             {% if article.language != 'en' and article.content_original %}
             <div class="card">
                 <div class="card-header bg-secondary text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#originalText">
@@ -136,13 +143,14 @@
                 </div>
                 <div id="originalText" class="collapse">
                     <div class="card-body bg-light text-muted" style="max-height: 300px; overflow-y: auto; font-size: 0.9rem;">
-                        {{ article.content_original }}
+                        <pre style="white-space: pre-wrap;">{{ article.content_original }}</pre>
                     </div>
                 </div>
             </div>
             {% endif %}
 
         </div>
+    </div>
 </form>
 
 <!-- Context Menu HTML -->
@@ -163,7 +171,7 @@
         orgs: new Set(),
         people: new Set(),
         events: new Set(),
-        tags: new Set() // Added Tags
+        tags: new Set()
     };
 
     let selectionIndices = { start: 0, end: 0 };
@@ -191,16 +199,29 @@
             tag.className = `entity-tag tag-${type.slice(0, -1)}`; 
             tag.innerHTML = `
                 ${item} 
-                <span class="remove-btn" onclick="removeEntity('${type}', '${item.replace(/'/g, "\\'")}')">&times;</span>
+                <span class="remove-btn" onclick="removeEntity('${type}', '${item.replace(/'/g, "\\'")}')" title="Remove tag and un-link in text">&times;</span>
             `;
             container.appendChild(tag);
         });
         document.getElementById(`input-${type}`).value = Array.from(entityState[type]).join(',');
     }
 
+    // --- 4. Logic to Remove Entity & Clean Brackets ---
     function removeEntity(type, item) {
+        // 1. Remove from Metadata
         entityState[type].delete(item);
         renderTags(type);
+
+        // 2. Remove brackets [[item]] from the text area
+        const contentArea = document.getElementById('article-content');
+        const originalText = contentArea.value;
+        
+        // Escape regex characters (like . or ?) in the item name
+        const escapedItem = item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
+        
+        // Find all occurrences of [[item]] and replace with just item
+        const regex = new RegExp(`\\[\\[${escapedItem}\\]\\]`, 'g');
+        contentArea.value = originalText.replace(regex, item);
     }
 
     function addEntity(type, item) {
@@ -212,16 +233,15 @@
         return cleanItem;
     }
 
-    // --- 4. Topic Tag Specific Logic ---
+    // --- 5. Tag Input ---
     function addTagFromInput() {
         const input = document.getElementById('tag-input-box');
         if(input.value) {
             addEntity('tags', input.value);
-            input.value = ''; // Clear input
+            input.value = '';
         }
     }
     
-    // Allow 'Enter' key to add tag
     document.getElementById('tag-input-box').addEventListener('keypress', function (e) {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -229,7 +249,7 @@
         }
     });
 
-    // --- 5. Context Menu Logic ---
+    // --- 6. Context Menu Logic ---
     const contextMenu = document.getElementById('context-menu');
     const contentArea = document.getElementById('article-content');
     let currentSelection = "";
