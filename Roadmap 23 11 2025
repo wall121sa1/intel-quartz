@@ -1,0 +1,21 @@
+🚀 Roadmap: Scaling Obsidian IngestThis document outlines the architectural evolution from the current Proof of Concept (POC) to a production-grade Enterprise application.Phase 1: Decoupling & Performance (The "Async" Update)Goal: Prevent the web interface from freezing during large scrape jobs.1. Task Queue ArchitectureCurrent State: Synchronous processing. The web server handles scraping, NLP, and HTTP requests in the same thread.Target State: Asynchronous processing using Celery and Redis.Implementation:Broker: Deploy Redis to manage the job queue.Worker: Run a separate Celery process (celery -A app.tasks worker) to execute FeedManager.sync_all_feeds().UI Update: The "Fetch" button initiates a task and returns a "Job Started" toast notification. A polling mechanism (or WebSocket) updates the Dashboard when the job finishes.2. Database MigrationCurrent State: SQLite (File-based, locks on concurrent writes).Target State: PostgreSQL (AWS RDS).Why: Essential for handling concurrent writes from multiple Celery workers and the Audit Log system.Phase 2: Advanced Translation & NLPGoal: Robust multi-language support and cost/performance optimization.1. Translation Strategy PatternAbstract the translation logic to support hot-swapping between Local (Argos) and Cloud (DeepL/AWS) providers.class TranslationProvider(ABC):
+    @abstractmethod
+    def translate(self, text, source_lang): pass
+
+class DeepLProvider(TranslationProvider):
+    # High quality, paid API
+    def translate(self, text, source_lang): ...
+
+class ArgosProvider(TranslationProvider):
+    # Free, local CPU processing
+    def translate(self, text, source_lang): ...
+2. NLP PerformanceOptimization: NLP processing is CPU intensive.Scaling: Move the spaCy pipeline into a dedicated microservice (e.g., using FastAPI) if the main application memory usage grows too large. This allows independent scaling of the NLP layer.Phase 3: Enterprise Security & User ManagementGoal: Secure the application for team usage.1. Multi-Factor Authentication (MFA)Standard: TOTP (Time-based One-Time Password).Library: pyotp + qrcode.Flow:User enables MFA in Settings.Server generates Secret + QR Code.On Login: Validate Password -> Request 6-digit Code -> Validate TOTP.2. Single Sign-On (SSO)Standard: OIDC (OpenID Connect).Libraries: authlib.Providers: Google Workspace, Azure AD, Okta.Logic:Offload credential management to the Identity Provider (IdP).Auto-provision users if their email domain matches the allowed list.3. Audit LoggingCreate a rigid audit trail for compliance and accountability.Schema:TABLE audit_log (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    action VARCHAR(50) NOT NULL, -- e.g., 'ARTICLE_APPROVED', 'RULE_DELETED'
+    target_id VARCHAR(50),       -- ID of the article or rule modified
+    details JSONB,               -- Snapshot of the change
+    ip_address INET,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+Phase 4: Cloud Deployment (AWS)Goal: High availability and data persistence.Containerization: Docker & Docker Compose.Orchestration: AWS ECS (Fargate) or Kubernetes.Storage (The Vault):Problem: Containers are ephemeral; local files disappear on restart.Solution: Mount AWS EFS (Elastic File System) to the container at /app/vault_data. This allows multiple containers to read/write to the same "disk" simultaneously.
