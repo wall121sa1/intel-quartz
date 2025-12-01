@@ -1,23 +1,22 @@
-import feedparser
-import ssl
-from newspaper import Article as NewspaperArticle
 from datetime import datetime
 from time import mktime
 
-# Fix for SSL context issues on some environments
-try:
-    _create_unverified_https_context = ssl._create_unverified_context
-except AttributeError:
-    pass
-else:
-    ssl._create_default_https_context = _create_unverified_https_context
+import feedparser
+import requests
+from newspaper import Article as NewspaperArticle
 
 class ScraperService:
+    FEED_TIMEOUT = 10
+    ARTICLE_TIMEOUT = 15
+    _session = requests.Session()
+
     @staticmethod
     def parse_feed(feed_url):
         """Parses an RSS feed and returns a list of entry dictionaries."""
         try:
-            return feedparser.parse(feed_url)
+            response = ScraperService._session.get(feed_url, timeout=ScraperService.FEED_TIMEOUT)
+            response.raise_for_status()
+            return feedparser.parse(response.content)
         except Exception as e:
             print(f"Error parsing feed {feed_url}: {e}")
             return None
@@ -26,8 +25,11 @@ class ScraperService:
     def fetch_full_text(url):
         """Uses newspaper3k to download and parse article text."""
         try:
+            response = ScraperService._session.get(url, timeout=ScraperService.ARTICLE_TIMEOUT)
+            response.raise_for_status()
+
             article = NewspaperArticle(url)
-            article.download()
+            article.set_html(response.text)
             article.parse()
             return article.text
         except Exception as e:

@@ -2,6 +2,7 @@ flask
 flask-sqlalchemy
 flask-login
 flask-migrate
+flask-limiter
 flask-apscheduler
 feedparser
 spacy

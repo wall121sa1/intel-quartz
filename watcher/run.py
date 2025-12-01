@@ -1,36 +1,45 @@
+import os
+
 from app import create_app, db
 from app.models import User
-from app.services.scheduler import SchedulerService # Import this
+from app.services.scheduler import SchedulerService
 
 app = create_app()
+
+
+def _bootstrap_admin_if_configured():
+    """Create an admin account only when explicitly configured."""
+
+    if User.query.first():
+        return
+
+    email = os.environ.get('BOOTSTRAP_ADMIN_EMAIL')
+    password = os.environ.get('BOOTSTRAP_ADMIN_PASSWORD')
+    allow_bootstrap = os.environ.get('ALLOW_BOOTSTRAP_ADMIN', 'false').lower() == 'true'
+
+    if allow_bootstrap and email and password:
+        app.logger.warning("Bootstrapping administrator account from environment variables.")
+        admin = User(email=email, username=email, role='admin')
+        admin.set_password(password)
+        db.session.add(admin)
+        db.session.commit()
+        return
+
+    app.logger.warning(
+        "No users exist and bootstrap is disabled. Configure BOOTSTRAP_ADMIN_EMAIL/BOOTSTRAP_ADMIN_PASSWORD and set "
+        "ALLOW_BOOTSTRAP_ADMIN=true to create the first admin."
+    )
+
 
 @app.shell_context_processor
 def make_shell_context():
     return {'db': db, 'User': User}
 
+
 if __name__ == '__main__':
     with app.app_context():
-        # 1. Create Tables
         db.create_all()
-        
-        # 2. Check for Default Admin
-        if not User.query.first():
-            print("Initialization: No users found.")
-            print("Creating default local admin...")
-            
-            admin = User(email='admin@localhost', username='Super Admin', role='admin')
-            admin.set_password('admin') 
-            
-            db.session.add(admin)
-            db.session.commit()
-            
-            print("------------------------------------------------")
-            print("DEFAULT ADMIN CREATED")
-            print("Email:    admin@localhost")
-            print("Password: admin")
-            print("------------------------------------------------")
-
-        # 3. Refresh Scheduler (Now that DB is definitely ready)
+        _bootstrap_admin_if_configured()
         SchedulerService.update_job_interval()
-        
-    app.run(debug=True, port=5000)
+
+    app.run(debug=app.config.get('DEBUG', False), port=5000)

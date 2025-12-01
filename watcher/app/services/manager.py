@@ -1,4 +1,5 @@
-from app.models import db, Feed, Article
+from flask import current_app
+from app.models import Article, Feed, SystemConfig, db
 from app.services.scraper import ScraperService
 from app.services.nlp import NLPService
 from app.services.translator import TranslatorService
@@ -9,17 +10,21 @@ class FeedManager:
     def sync_all_feeds():
         feeds = Feed.query.all()
         stats = {'added': 0, 'errors': 0, 'skipped': 0}
-        
+
         for feed in feeds:
-            print(f"Syncing feed: {feed.name}...")
-            
+            current_app.logger.info("Syncing feed", extra={"feed": feed.name})
+
+            existing_urls = {
+                url for (url,) in db.session.query(Article.url).filter(Article.feed_id == feed.id).all()
+            }
+
             rss_data = ScraperService.parse_feed(feed.url)
             if not rss_data or not hasattr(rss_data, 'entries'):
                 stats['errors'] += 1
                 continue
 
             for entry in rss_data.entries:
-                if Article.query.filter_by(url=entry.link).first():
+                if entry.link in existing_urls:
                     stats['skipped'] += 1
                     continue
 
@@ -74,10 +79,10 @@ class FeedManager:
                     stats['added'] += 1
 
                 except Exception as e:
-                    print(f"Error processing entry {entry.link}: {e}")
+                    current_app.logger.exception("Error processing entry", extra={"url": entry.link})
                     stats['errors'] += 1
-            
+
             db.session.commit()
         SystemConfig.set('last_run_timestamp', datetime.utcnow().isoformat())
-            
+
         return stats

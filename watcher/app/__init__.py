@@ -1,6 +1,8 @@
 from flask import Flask
 from flask_login import LoginManager
 from flask_migrate import Migrate
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from config import Config
 from app.models import db, User
 from authlib.integrations.flask_client import OAuth
@@ -10,6 +12,7 @@ migrate = Migrate()
 login = LoginManager()
 login.login_view = 'auth.login'
 oauth = OAuth()
+limiter = Limiter(key_func=get_remote_address, default_limits=["200 per hour"], storage_uri="memory://")
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -19,6 +22,7 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
     login.init_app(app)
     oauth.init_app(app)
+    limiter.init_app(app)
 
     # --- Dynamic SSO Registration ---
     
