@@ -101,8 +101,8 @@ def tenant_callback():
 
     client, tenant = AuthManager.get_sso_client(domain)
     if not client:
-         flash("SSO Configuration Error.")
-         return redirect(url_for('auth.login'))
+        flash("SSO Configuration Error.")
+        return redirect(url_for('auth.login'))
 
     try:
         token = client.authorize_access_token()
@@ -111,6 +111,17 @@ def tenant_callback():
 
         if not email:
             flash("Identity provider did not return an email.")
+            return redirect(url_for('auth.login'))
+
+        allowed_users = current_app.config.get('ALLOWED_USERS', [])
+        allowed_domains = current_app.config.get('ALLOWED_DOMAINS', [])
+        if allowed_users and email not in allowed_users:
+            flash("Access Denied.")
+            return redirect(url_for('auth.login'))
+
+        domain = email.split('@')[1].lower()
+        if allowed_domains and domain not in allowed_domains:
+            flash("Access Denied for this domain.")
             return redirect(url_for('auth.login'))
 
         if email.split('@')[1].lower() != tenant.domain.lower():
