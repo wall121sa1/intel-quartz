@@ -1,42 +1,120 @@
-# app.py
-from fastapi import FastAPI
-from pydantic import BaseModel
-from typing import List, Dict, Any
+"""NER service with health checks and hot reload support."""
+from __future__ import annotations
+
+import os
+import socket
+import time
+from threading import Lock
+from typing import Any, Dict, List, Optional
+
 import spacy
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+from spacy.language import Language
 
 app = FastAPI()
 
-# Load SpaCy model once at startup (this is the “heavy” part)
-nlp = spacy.load("en_core_web_sm")
+SERVICE_NAME = os.getenv("SERVICE_NAME", "ner-service")
+INSTANCE_ID = os.getenv("INSTANCE_ID", socket.gethostname())
+SPACY_MODEL = os.getenv("SPACY_MODEL", "en_core_web_sm")
 
-# Simple in-memory rules store (for /reload)
-# You can extend this later.
-custom_rules = {
-    "tags": []  # e.g. ["crypto", "bitcoin", ...]
-}
+START_TIME = time.time()
+rules_lock = Lock()
+
 
 class ProcessRequest(BaseModel):
     text: str
 
+
 class ReloadRequest(BaseModel):
-    rules: Dict[str, Any]
+    rules: Dict[str, Any] = Field(default_factory=dict)
+    model: Optional[str] = Field(
+        default=None,
+        description="Optional SpaCy model name to hot-swap for new tenants/traffic.",
+    )
+    update_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Cluster-scoped update identifier; prevents stale reloads when multiple "
+            "instances receive the same training/rules payload."
+        ),
+    )
+    training_data_version: Optional[str] = Field(
+        default=None,
+        description="Version or timestamp of the underlying training data for traceability.",
+    )
+
+
+def load_spacy_model(model_name: str) -> Language:
+    """Load a SpaCy model by name, raising HTTPException on failure."""
+    try:
+        return spacy.load(model_name)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Failed to load model {model_name}: {exc}")
+
+
+def initialize_state() -> None:
+    """Initialize shared state for this FastAPI instance."""
+    app.state.model_name = SPACY_MODEL
+    app.state.model = load_spacy_model(SPACY_MODEL)
+    app.state.custom_rules: Dict[str, Any] = {"tags": []}
+    app.state.rules_version = 1
+    app.state.ready = True
+    app.state.update_id: Optional[str] = None
+    app.state.training_data_version: Optional[str] = None
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    initialize_state()
+
+
+@app.get("/health/live")
+def liveness() -> Dict[str, Any]:
+    """Liveness probe used by load balancers to weed out dead pods."""
+    return {
+        "status": "alive",
+        "service": SERVICE_NAME,
+        "instance_id": INSTANCE_ID,
+        "uptime_seconds": round(time.time() - START_TIME, 3),
+    }
+
+
+@app.get("/health/ready")
+def readiness() -> Dict[str, Any]:
+    """Readiness probe confirms the model and rules are available."""
+    is_ready = bool(getattr(app.state, "ready", False) and getattr(app.state, "model", None))
+    return {
+        "status": "ready" if is_ready else "not_ready",
+        "service": SERVICE_NAME,
+        "instance_id": INSTANCE_ID,
+        "model": getattr(app.state, "model_name", None),
+        "rules_version": getattr(app.state, "rules_version", 0),
+        "update_id": getattr(app.state, "update_id", None),
+        "training_data_version": getattr(app.state, "training_data_version", None),
+        "uptime_seconds": round(time.time() - START_TIME, 3),
+        "ready": is_ready,
+    }
 
 
 @app.get("/health")
-def health():
-    """Simple health check endpoint."""
-    return {"status": "ok"}
+def health_root() -> Dict[str, Any]:
+    """Backwards-compatible health endpoint; mirrors readiness."""
+    return readiness()
 
 
 @app.post("/process")
-def process(req: ProcessRequest):
+def process(req: ProcessRequest) -> Dict[str, Any]:
     """
     Main NER endpoint.
     Input: {"text": "..."}
     Output: the JSON shape you described.
     """
-    text = req.text
-    doc = nlp(text)
+    with rules_lock:
+        nlp: Language = app.state.model
+        rules_snapshot = {"tags": list(app.state.custom_rules.get("tags", []))}
+
+    doc = nlp(req.text)
 
     orgs: List[str] = []
     people: List[str] = []
@@ -44,7 +122,6 @@ def process(req: ProcessRequest):
     events: List[str] = []
     tags: List[str] = []
 
-    # Basic entity extraction with SpaCy
     for ent in doc.ents:
         if ent.label_ in ("ORG",):
             orgs.append(ent.text)
@@ -55,46 +132,64 @@ def process(req: ProcessRequest):
         elif ent.label_ in ("EVENT",):
             events.append(ent.text)
 
-    # Very simple tag logic using our custom_rules["tags"]
-    lower_text = text.lower()
-    for t in custom_rules.get("tags", []):
-        if t.lower() in lower_text:
-            tags.append(t)
+    lower_text = req.text.lower()
+    for tag in rules_snapshot.get("tags", []):
+        if tag.lower() in lower_text:
+            tags.append(tag)
 
-    # Build a very basic "annotated markdown"
-    # For now we just wrap entities in []()
-    # In your real system you’d replace with wiki links.
-    annotated = text
+    annotated = req.text
     for ent in doc.ents:
-        # naive replace, good enough for starting
         annotated = annotated.replace(ent.text, f"[{ent.text}](#)")
 
     return {
-        "text": text,
+        "text": req.text,
         "entities": {
-            "orgs": list(set(orgs)),
-            "people": list(set(people)),
-            "locs": list(set(locs)),
-            "events": list(set(events)),
-            "tags": list(set(tags)),
+            "orgs": sorted(set(orgs)),
+            "people": sorted(set(people)),
+            "locs": sorted(set(locs)),
+            "events": sorted(set(events)),
+            "tags": sorted(set(tags)),
         },
         "content_with_links": annotated,
     }
 
 
 @app.post("/reload")
-def reload_rules(req: ReloadRequest):
-    """
-    Replace in-memory rules with what the client sends.
-    Example payload:
-    {
-      "rules": {
-        "tags": ["crypto", "bitcoin", "ethereum"]
-      }
-    }
-    """
-    global custom_rules
-    custom_rules = req.rules or {}
-    # Make sure "tags" is always present
-    custom_rules.setdefault("tags", [])
-    return {"status": "reloaded", "rules": custom_rules}
+def reload_rules(req: ReloadRequest) -> Dict[str, Any]:
+    """Reload rules and optionally swap SpaCy models without downtime."""
+    with rules_lock:
+        if req.update_id and getattr(app.state, "update_id", None) == req.update_id:
+            return {
+                "status": "skipped",
+                "reason": "update_already_applied",
+                "service": SERVICE_NAME,
+                "instance_id": INSTANCE_ID,
+                "model": app.state.model_name,
+                "rules_version": app.state.rules_version,
+                "update_id": app.state.update_id,
+                "training_data_version": app.state.training_data_version,
+            }
+
+        if req.model and req.model != app.state.model_name:
+            app.state.ready = False
+            new_model = load_spacy_model(req.model)
+            app.state.model = new_model
+            app.state.model_name = req.model
+            app.state.ready = True
+
+        app.state.custom_rules = req.rules or {}
+        app.state.custom_rules.setdefault("tags", [])
+        app.state.rules_version += 1
+        app.state.update_id = req.update_id or app.state.update_id
+        app.state.training_data_version = req.training_data_version or app.state.training_data_version
+
+        return {
+            "status": "reloaded",
+            "service": SERVICE_NAME,
+            "instance_id": INSTANCE_ID,
+            "model": app.state.model_name,
+            "rules_version": app.state.rules_version,
+            "update_id": app.state.update_id,
+            "training_data_version": app.state.training_data_version,
+            "rules": app.state.custom_rules,
+        }
