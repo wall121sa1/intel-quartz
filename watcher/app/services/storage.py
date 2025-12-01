@@ -1,4 +1,4 @@
-import os
+import json
 import boto3
 from pathlib import Path
 from slugify import slugify
@@ -12,44 +12,77 @@ class StorageService:
         """
         storage_type = current_app.config.get('STORAGE_TYPE', 'local').lower()
         file_content = StorageService._format_markdown(article_obj, feed_name, reliability)
-        
+        entities_payload = StorageService._build_entities_payload(article_obj)
+
         # Define the structure: Source / Year / Month / Day / Title.md
         year = article_obj.pub_date.strftime("%Y")
         month = article_obj.pub_date.strftime("%m")
         day = article_obj.pub_date.strftime("%d")
         safe_source = slugify(feed_name)
-        safe_filename = f"{slugify(article_obj.title)}.md"
+        safe_basename = slugify(article_obj.title)
+        safe_md_filename = f"{safe_basename}.md"
+        sidecar_filename = f"{safe_basename}.entities.json"
 
         if storage_type == 's3':
             return StorageService._save_to_s3(
-                safe_source, year, month, day, safe_filename, file_content
+                safe_source,
+                year,
+                month,
+                day,
+                safe_md_filename,
+                sidecar_filename,
+                file_content,
+                entities_payload,
             )
         else:
             return StorageService._save_to_local(
-                safe_source, year, month, day, safe_filename, file_content
+                safe_source,
+                year,
+                month,
+                day,
+                safe_md_filename,
+                sidecar_filename,
+                file_content,
+                entities_payload,
             )
 
     @staticmethod
-    def _save_to_local(safe_source, year, month, day, filename, content):
+    def _save_to_local(
+        safe_source, year, month, day, markdown_filename, sidecar_filename, content, entities
+    ):
         vault_root = Path(current_app.config['VAULT_ROOT'])
         target_dir = vault_root / safe_source / year / month / day
         target_dir.mkdir(parents=True, exist_ok=True)
-        
-        file_path = target_dir / filename
-        
+
+        file_path = target_dir / markdown_filename
+        sidecar_path = target_dir / sidecar_filename
+
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
-            
+
+        with open(sidecar_path, "w", encoding="utf-8") as f:
+            json.dump(entities, f, ensure_ascii=False, indent=2)
+
         return str(file_path)
 
     @staticmethod
-    def _save_to_s3(safe_source, year, month, day, filename, content):
+    def _save_to_s3(
+        safe_source,
+        year,
+        month,
+        day,
+        markdown_filename,
+        sidecar_filename,
+        content,
+        entities,
+    ):
         bucket_name = current_app.config.get('S3_BUCKET')
         if not bucket_name:
             raise ValueError("S3_BUCKET not configured")
 
         # Create S3 Key (Path) - Always use forward slashes for S3
-        s3_key = f"{safe_source}/{year}/{month}/{day}/{filename}"
+        s3_markdown_key = f"{safe_source}/{year}/{month}/{day}/{markdown_filename}"
+        s3_sidecar_key = f"{safe_source}/{year}/{month}/{day}/{sidecar_filename}"
         
         client_kwargs = {k: v for k, v in {
             'aws_access_key_id': current_app.config.get('AWS_ACCESS_KEY_ID'),
@@ -62,12 +95,19 @@ class StorageService:
         
         s3.put_object(
             Bucket=bucket_name,
-            Key=s3_key,
+            Key=s3_markdown_key,
             Body=content.encode('utf-8'),
             ContentType='text/markdown'
         )
-        
-        return f"s3://{bucket_name}/{s3_key}"
+
+        s3.put_object(
+            Bucket=bucket_name,
+            Key=s3_sidecar_key,
+            Body=json.dumps(entities).encode('utf-8'),
+            ContentType='application/json'
+        )
+
+        return f"s3://{bucket_name}/{s3_markdown_key}"
 
     @staticmethod
     def _format_markdown(article, feed_name, reliability):
@@ -111,3 +151,18 @@ link: {article.url}
 {article.content_original}
 """
         return md_output
+
+    @staticmethod
+    def _build_entities_payload(article):
+        return {
+            'organizations': StorageService._csv_to_list(article.organizations),
+            'people': StorageService._csv_to_list(article.people),
+            'locations': StorageService._csv_to_list(article.locations),
+            'events': StorageService._csv_to_list(article.events),
+        }
+
+    @staticmethod
+    def _csv_to_list(csv_string):
+        if not csv_string:
+            return []
+        return [item.strip() for item in csv_string.split(',') if item.strip()]
