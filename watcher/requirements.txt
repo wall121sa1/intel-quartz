@@ -19,3 +19,5 @@ python-dotenv
 boto3
 argostranslate
 langdetect
+celery
+redis
