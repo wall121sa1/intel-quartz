@@ -35,7 +35,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 12G
+          memory: 24G
 
 volumes:
   watcher-vault:
