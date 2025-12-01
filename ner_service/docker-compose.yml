@@ -1,0 +1,10 @@
+# docker-compose.yml
+version: "3.9"
+
+services:
+  ner:
+    build: .              # uses the Dockerfile in this folder
+    container_name: ner
+    ports:
+      - "8000:8000"       # host:container
+    restart: unless-stopped
