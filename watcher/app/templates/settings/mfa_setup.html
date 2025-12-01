@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">Setup Two-Factor Authentication</div>
+            <div class="card-body text-center">
+                <p>Scan this QR code with Google Authenticator or Authy.</p>
+                
+                <div class="border p-3 d-inline-block mb-3 bg-white">
+                    <img src="data:image/png;base64,{{ qr_b64 }}" alt="MFA QR Code" style="width: 200px;">
+                </div>
+                
+                <p class="text-muted small">Secret Key: <code>{{ secret }}</code></p>
+                
+                <hr>
+                
+                <form method="post">
+                    <div class="mb-3">
+                        <label class="form-label">Enter the 6-digit code to confirm</label>
+                        <input type="text" name="code" class="form-control text-center w-50 mx-auto" 
+                               placeholder="123456" required>
+                    </div>
+                    <button type="submit" class="btn btn-success">Verify & Enable</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

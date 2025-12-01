@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5">
+        <div class="card shadow-sm">
+            <div class="card-body p-5">
+                <h2 class="mb-4 text-center">Sign In</h2>
+                
+                <form method="post" action="{{ url_for('auth.login') }}">
+                    <div class="mb-3">
+                        <label class="form-label">Work Email</label>
+                        <input type="email" name="email" class="form-control form-control-lg" placeholder="name@company.com" required autofocus>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 btn-lg">Next</button>
+                </form>
+
+                <div class="text-center mt-3">
+                    <small class="text-muted">We'll check if your organization has Single Sign-On enabled.</small>
+                </div>
+                
+                <hr class="my-4">
+                
+                <div class="text-center">
+                    <a href="{{ url_for('auth.login_legacy') }}" class="text-decoration-none">
+                        Are you an admin? Sign in here.
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+```
+
+### 5. How to Onboard a Client
+
+To add "Client A" who uses their own Okta:
+
+1.  Ask Client A to create an OIDC App in their Okta.
+2.  Tell them to set the Redirect URI to: `https://your-app.com/login/callback`
+3.  Ask them for:
+    * **Client ID**
+    * **Client Secret**
+    * **Issuer URL** (e.g., `https://client-a.okta.com/.well-known/openid-configuration`)
+4.  Insert into your Database (via a new Admin Settings page or raw SQL):
+
+```sql
+INSERT INTO tenant (name, domain, sso_provider, client_id, client_secret, discovery_url)
+VALUES (
+    'Client A', 
+    'client-a.com', 
+    'okta', 
+    'THE_CLIENT_ID', 
+    'THE_CLIENT_SECRET', 
+    'https://client-a.okta.com/.well-known/openid-configuration'
+);

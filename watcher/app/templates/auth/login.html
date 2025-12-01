@@ -2,21 +2,35 @@
 
 {% block content %}
 <div class="row justify-content-center mt-5">
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">Login</div>
-            <div class="card-body">
-                <form method="post">
-                    <div class="mb-3">
-                        <label class="form-label">Username</label>
-                        <input type="text" name="username" class="form-control" required>
+    <div class="col-md-5 text-center">
+        <div class="card shadow-sm">
+            <div class="card-body p-5">
+                <h2 class="mb-4">Welcome Back</h2>
+                <p class="text-muted mb-4">Sign in to Obsidian Ingest</p>
+                
+                {% if not providers %}
+                    <div class="alert alert-warning">
+                        No SSO providers configured.<br>
+                        <small>Check your config.py or environment variables.</small>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Password</label>
-                        <input type="password" name="password" class="form-control" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Sign In</button>
-                </form>
+                {% endif %}
+
+                <div class="d-grid gap-2">
+                    {% for p in providers %}
+                        <a href="{{ url_for('auth.sso_login', provider=p) }}" class="btn btn-lg btn-outline-dark text-capitalize">
+                            {% if p == 'google' %}
+                                <i class="bi bi-google me-2"></i>
+                            {% elif p == 'microsoft' %}
+                                <i class="bi bi-microsoft me-2"></i>
+                            {% elif p == 'cloudflare' %}
+                                <i class="bi bi-cloud me-2"></i>
+                            {% else %}
+                                <i class="bi bi-shield-lock me-2"></i>
+                            {% endif %}
+                            Sign in with {{ p }}
+                        </a>
+                    {% endfor %}
+                </div>
             </div>
         </div>
     </div>

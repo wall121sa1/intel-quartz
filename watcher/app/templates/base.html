@@ -26,14 +26,22 @@
             <li class="nav-item"><a class="nav-link" href="{{ url_for('main.dashboard') }}">Queue</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('main.history') }}">History</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('settings.feeds') }}">Feeds</a></li>
-            
-            
-            {% if current_user.role == 'admin' %}
             <li class="nav-item"><a class="nav-link" href="{{ url_for('settings.tags') }}">Tags</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('settings.dictionary') }}">Dictionary</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('settings.users') }}">Users</a></li>
+            
+            {% if current_user.role == 'admin' %}
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    Admin
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="adminDropdown">
+                    <li><a class="dropdown-item" href="{{ url_for('settings.users') }}">User Management</a></li>
+                    <li><a class="dropdown-item" href="{{ url_for('settings.tenants') }}">SSO & Tenants</a></li>
+                </ul>
+            </li>
             {% endif %}
             
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('settings.mfa_setup') }}" title="MFA Settings"><i class="bi bi-shield-lock"></i></a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.logout') }}">Logout</a></li>
         {% endif %}
       </ul>

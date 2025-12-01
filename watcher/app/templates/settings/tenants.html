@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1>SSO & Organizations</h1>
+        <p class="text-muted">Manage external clients and their specific Identity Providers.</p>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Add Tenant Form -->
+    <div class="col-md-4">
+        <div class="card border-primary mb-4">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-building"></i> Register New Organization
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('settings.add_tenant') }}" method="post">
+                    <h6 class="fw-bold mt-2">Organization Details</h6>
+                    <div class="mb-2">
+                        <label class="form-label small text-muted">Client Name</label>
+                        <input type="text" name="name" class="form-control" placeholder="Acme Corp" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Email Domain</label>
+                        <div class="input-group">
+                            <span class="input-group-text">@</span>
+                            <input type="text" name="domain" class="form-control" placeholder="acme.com" required>
+                        </div>
+                        <div class="form-text small">Used for auto-discovery login.</div>
+                    </div>
+
+                    <hr>
+                    <h6 class="fw-bold">OIDC Configuration</h6>
+                    
+                    <div class="mb-2">
+                        <label class="form-label small text-muted">Provider Type</label>
+                        <select name="sso_provider" class="form-select">
+                            <option value="okta">Okta</option>
+                            <option value="microsoft">Azure AD / Microsoft</option>
+                            <option value="google">Google Workspace</option>
+                            <option value="auth0">Auth0</option>
+                            <option value="generic">Generic OIDC</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-2">
+                        <label class="form-label small text-muted">Client ID</label>
+                        <input type="text" name="client_id" class="form-control" required>
+                    </div>
+                    
+                    <div class="mb-2">
+                        <label class="form-label small text-muted">Client Secret</label>
+                        <input type="password" name="client_secret" class="form-control" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Discovery URL (.well-known)</label>
+                        <input type="url" name="discovery_url" class="form-control" placeholder="https://..." required>
+                        <div class="form-text small">e.g. <code>https://acme.okta.com/.well-known/openid-configuration</code></div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">Add Organization</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tenant List -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                Active Configurations
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Organization</th>
+                            <th>Domain</th>
+                            <th>Provider</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tenant in tenants %}
+                        <tr>
+                            <td class="align-middle fw-bold">{{ tenant.name }}</td>
+                            <td class="align-middle"><code>@{{ tenant.domain }}</code></td>
+                            <td class="align-middle">
+                                {% if tenant.sso_provider == 'microsoft' %}
+                                    <i class="bi bi-microsoft text-primary"></i> Azure AD
+                                {% elif tenant.sso_provider == 'google' %}
+                                    <i class="bi bi-google text-danger"></i> Google
+                                {% elif tenant.sso_provider == 'okta' %}
+                                    <i class="bi bi-shield-lock-fill text-dark"></i> Okta
+                                {% else %}
+                                    <i class="bi bi-hdd-network"></i> {{ tenant.sso_provider|title }}
+                                {% endif %}
+                            </td>
+                            <td class="align-middle"><span class="badge bg-success">Active</span></td>
+                            <td class="align-middle text-end">
+                                <a href="{{ url_for('settings.delete_tenant', id=tenant.id) }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this organization? Users will lose access.')">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center py-5 text-muted">
+                                No external organizations configured.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="alert alert-info mt-3">
+            <h6 class="alert-heading"><i class="bi bi-info-circle"></i> Callback Configuration</h6>
+            <p class="mb-0">When setting up the Identity Provider (IdP), verify the Redirect URI matches this server:</p>
+            <code>{{ url_for('auth.tenant_callback', _external=True) }}</code>
+        </div>
+    </div>
+</div>
+{% endblock %}
