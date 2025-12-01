@@ -33,8 +33,17 @@ def _get_encryption_key() -> str:
         return key
 
     if environment in {'development', 'testing'}:
-        # Safe fallback for local runs only. Production must provide a fixed key.
-        return Fernet.generate_key().decode()
+        # Persist a stable dev key to avoid data loss between restarts.
+        dev_key_path = os.path.join(basedir, '.dev_encryption_key')
+        if os.path.exists(dev_key_path):
+            with open(dev_key_path, 'r') as fh:
+                return fh.read().strip()
+
+        generated_key = Fernet.generate_key().decode()
+        fd = os.open(dev_key_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, 'w') as fh:
+            fh.write(generated_key)
+        return generated_key
 
     raise RuntimeError("ENCRYPTION_KEY is required in production.")
 

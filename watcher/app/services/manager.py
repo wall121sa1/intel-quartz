@@ -13,15 +13,6 @@ class FeedManager:
         This function returns almost immediately, preventing blocking.
         """
         feeds = Feed.query.all()
-        print(f"Manager: Dispatching sync for {len(feeds)} feeds...")
-        
-        for feed in feeds:
-            # Dispatch to Celery
-            fetch_feed_task.delay(feed.id)
-            
-        # Update timestamp
-        SystemConfig.set('last_run_timestamp', datetime.now(timezone.utc).isoformat())
-        return {'status': 'dispatched', 'count': len(feeds)}
         stats = {'added': 0, 'errors': 0, 'skipped': 0}
 
         for feed in feeds:
