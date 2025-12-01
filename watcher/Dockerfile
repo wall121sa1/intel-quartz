@@ -21,8 +21,7 @@ WORKDIR /app
 
 # Install Python dependencies first to leverage Docker layer caching
 COPY watcher/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt && \
-    python -m spacy download en_core_web_sm
+RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
 
 # Copy application code
 COPY watcher/ ./

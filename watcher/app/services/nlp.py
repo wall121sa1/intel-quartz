@@ -1,35 +1,46 @@
+import os
+import logging
+
+import requests
 import spacy
 from flask import current_app
 from app.models import CustomEntity
-import logging
 
 # Initialize logger
 logger = logging.getLogger(__name__)
 
 # Global variable
 _nlp_pipeline = None
+_remote_nlp_url = os.getenv("NER_SERVICE_URL", "http://ner:8000")
+
+
+def _collect_custom_rules():
+    """Return custom entity rules as pattern dicts."""
+    try:
+        if current_app:
+            entities = CustomEntity.query.all()
+            return [{"label": e.label, "pattern": e.text} for e in entities]
+    except Exception as exc:
+        logger.warning("NLP: DB Rule Load Error (Ignore if DB init): %s", exc)
+
+    return []
+
 
 def load_custom_rules(nlp):
     """Helper to load rules from DB into the provided nlp object"""
-    try:
-        # We need an app context to query the DB
-        if current_app:
-            entities = CustomEntity.query.all()
-            if not entities:
-                return
+    patterns = _collect_custom_rules()
+    if not patterns:
+        return
 
-            ruler = nlp.get_pipe("entity_ruler")
-            ruler.clear_patterns() # Clear old to avoid duplicates on reload
-            
-            patterns = [{"label": e.label, "pattern": e.text} for e in entities]
-            ruler.add_patterns(patterns)
-            logger.info(f"NLP: Loaded {len(patterns)} custom rules.")
-    except Exception as e:
-        logger.warning(f"NLP: DB Rule Load Error (Ignore if DB init): {e}")
+    ruler = nlp.get_pipe("entity_ruler")
+    ruler.clear_patterns()  # Clear old to avoid duplicates on reload
+    ruler.add_patterns(patterns)
+    logger.info("NLP: Loaded %s custom rules.", len(patterns))
+
 
 def get_nlp_pipeline():
     global _nlp_pipeline
-    
+
     if _nlp_pipeline is not None:
         return _nlp_pipeline
 
@@ -37,12 +48,14 @@ def get_nlp_pipeline():
     try:
         # Disable components we don't need to save RAM (e.g., parser if we only need entities)
         # keeping 'ner' is essential. 'parser' is heavy, disable if not doing dependency parsing.
-        _nlp_pipeline = spacy.load("en_core_web_sm", disable=['parser', 'tagger', 'attribute_ruler', 'lemmatizer'])
-        
+        _nlp_pipeline = spacy.load(
+            "en_core_web_sm", disable=['parser', 'tagger', 'attribute_ruler', 'lemmatizer']
+        )
+
         # Add EntityRuler
         if "entity_ruler" not in _nlp_pipeline.pipe_names:
             _nlp_pipeline.add_pipe("entity_ruler", before="ner", config={"overwrite_ents": True})
-        
+
         # Load rules
         load_custom_rules(_nlp_pipeline)
 
@@ -50,9 +63,12 @@ def get_nlp_pipeline():
         logger.critical("NLP: Model not found. downloading...")
         from spacy.cli import download
         download("en_core_web_sm")
-        _nlp_pipeline = spacy.load("en_core_web_sm", disable=['parser', 'tagger', 'attribute_ruler', 'lemmatizer'])
+        _nlp_pipeline = spacy.load(
+            "en_core_web_sm", disable=['parser', 'tagger', 'attribute_ruler', 'lemmatizer']
+        )
 
     return _nlp_pipeline
+
 
 class NLPService:
     @staticmethod
@@ -60,32 +76,61 @@ class NLPService:
         """
         Processes text to extract entities and inject wikilinks.
         """
-        nlp = get_nlp_pipeline()
-        
         empty_result = {
             "entities": {"orgs": [], "people": [], "locs": [], "events": [], "tags": []},
-            "content_with_links": text
+            "content_with_links": text,
         }
 
-        if not nlp or not text:
+        if not text:
+            return empty_result
+
+        # Always prefer the remote NER endpoint (default) so models stay centralized.
+        try:
+            payload = {"text": text}
+            custom_rules = _collect_custom_rules()
+            if custom_rules:
+                payload["rules"] = custom_rules
+
+            response = requests.post(
+                _remote_nlp_url.rstrip("/") + "/process",
+                json=payload,
+                timeout=15,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            if "content_with_links" in data and "entities" in data:
+                return data
+
+            logger.warning("NLP: Remote response missing expected keys, falling back to local pipeline")
+        except Exception as exc:
+            logger.warning("NLP: Remote service unavailable, falling back to local pipeline: %s", exc)
+
+        return NLPService._process_text_local(text, empty_result)
+
+    @staticmethod
+    def _process_text_local(text, empty_result):
+        nlp = get_nlp_pipeline()
+
+        if not nlp:
             return empty_result
 
         # Increase max length for large articles (default is 1,000,000)
-        nlp.max_length = 2000000 
+        nlp.max_length = 2000000
 
         doc = nlp(text)
-        
+
         # 1. Extract unique entities using set comprehensions
         orgs = {ent.text for ent in doc.ents if ent.label_ == "ORG"}
         people = {ent.text for ent in doc.ents if ent.label_ == "PERSON"}
         locs = {ent.text for ent in doc.ents if ent.label_ in ["GPE", "LOC"]}
-        events = {ent.text for ent in doc.ents if ent.label_ in ["EVENT", "DATE"] if ent.label_ == "EVENT"} # Strict event check
+        events = {ent.text for ent in doc.ents if ent.label_ in ["EVENT", "DATE"] if ent.label_ == "EVENT"}  # Strict event check
         tags = {ent.text for ent in doc.ents if ent.label_ in ["TAG", "TOPIC"]}
 
         # 2. Inject WikiLinks (Reverse order replacement)
         entities_reversed = sorted(doc.ents, key=lambda e: e.start_char, reverse=True)
         new_content = text
-        
+
         # Optimization: Use a set for faster lookup
         linkable_labels = {"ORG", "PERSON", "GPE", "LOC", "EVENT", "TAG", "TOPIC"}
 
@@ -95,7 +140,7 @@ class NLPService:
                 # Check for existing brackets [[...]]
                 if start >= 2 and new_content[start-2:start] == "[[":
                     continue
-                
+
                 # Check for markdown links [...] or (...)
                 # Simple heuristic: don't break existing markdown links
                 if start > 0 and new_content[start-1] == "[":
@@ -110,3 +155,25 @@ class NLPService:
             },
             "content_with_links": new_content
         }
+
+    @staticmethod
+    def reload_model():
+        """Force refresh of the NLP model and sync any remote service."""
+        global _nlp_pipeline
+        _nlp_pipeline = None
+
+        try:
+            rules = _collect_custom_rules()
+            response = requests.post(
+                _remote_nlp_url.rstrip("/") + "/reload",
+                json={"rules": rules},
+                timeout=10,
+            )
+            response.raise_for_status()
+            logger.info("NLP: Remote model reloaded with %s rules", len(rules))
+            return
+        except Exception as exc:
+            logger.warning("NLP: Remote reload failed, refreshing local pipeline instead: %s", exc)
+
+        # Fallback to refreshing the in-process pipeline to keep UI dictionary tests working.
+        get_nlp_pipeline()
