@@ -14,6 +14,11 @@ The local SpaCy pipeline works for small loads, but for many concurrent feeds it
 
 1. Deploy the NER API and expose a base URL (e.g., `http://ner:8000`).
 2. The watcher defaults to `http://ner:8000` but you can override it with `NER_SERVICE_URL`. The application always `POST`s to `<NER_SERVICE_URL>/process` and will only fall back to the local model if the service is unreachable.
+   - Control networking behavior with:
+     - `NER_SERVICE_TIMEOUT` (seconds) to bound slow responses.
+     - `NER_SERVICE_FAILURE_THRESHOLD` and `NER_SERVICE_BACKOFF_SECONDS` to temporarily pause remote calls after repeated errors (avoids blocking the worker while the service restarts).
+     - `NER_SERVICE_POOL_SIZE` to size the HTTP connection pool when multiple feeds are processed concurrently.
+   - The watcher identifies itself to the remote service using the `X-Watcher-Client` header (defaults to the container hostname, override with `NER_SERVICE_CLIENT_ID`). This makes it easy to filter incoming logs or traces per caller.
 3. Keep the endpoint contract:
    ```json
    {
