@@ -1,6 +1,4 @@
 import logging
-import os
-import socket
 from datetime import datetime, timedelta
 
 import requests
@@ -8,7 +6,6 @@ import spacy
 from flask import current_app
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-
 from app.models import CustomEntity
 
 # Initialize logger
@@ -21,7 +18,6 @@ _remote_timeout = float(os.getenv("NER_SERVICE_TIMEOUT", "15"))
 _remote_failure_threshold = int(os.getenv("NER_SERVICE_FAILURE_THRESHOLD", "3"))
 _remote_backoff_seconds = int(os.getenv("NER_SERVICE_BACKOFF_SECONDS", "300"))
 _remote_pool_size = int(os.getenv("NER_SERVICE_POOL_SIZE", "10"))
-_remote_client_id = os.getenv("NER_SERVICE_CLIENT_ID", socket.gethostname())
 
 _remote_session = None
 _remote_disable_until: datetime | None = None
@@ -70,12 +66,6 @@ def _get_remote_session():
         )
 
         session = requests.Session()
-        session.headers.update(
-            {
-                "User-Agent": f"watcher-ner-client/{_remote_client_id}",
-                "X-Watcher-Client": _remote_client_id,
-            }
-        )
         session.mount("http://", adapter)
         session.mount("https://", adapter)
         _remote_session = session
