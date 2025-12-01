@@ -52,7 +52,7 @@ class User(UserMixin, db.Model):
     mfa_secret = db.Column(EncryptedString(500)) 
     
     # Hashed (One-way)
-    password_hash = db.Column(db.String(128))
+    password_hash = db.Column(db.String(255))
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)

@@ -17,3 +17,5 @@ qrcode[pil]
 cryptography
 python-dotenv
 boto3
+argostranslate
+langdetect
