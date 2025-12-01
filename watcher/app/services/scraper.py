@@ -3,18 +3,23 @@ from time import mktime
 
 import feedparser
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 from newspaper import Article as NewspaperArticle
 
 class ScraperService:
     FEED_TIMEOUT = 10
     ARTICLE_TIMEOUT = 15
-    _session = requests.Session()
+    _session = None
 
     @staticmethod
     def parse_feed(feed_url):
         """Parses an RSS feed and returns a list of entry dictionaries."""
         try:
-            response = ScraperService._session.get(feed_url, timeout=ScraperService.FEED_TIMEOUT)
+            response = ScraperService._get_session().get(
+                feed_url,
+                timeout=ScraperService.FEED_TIMEOUT,
+            )
             response.raise_for_status()
             return feedparser.parse(response.content)
         except Exception as e:
@@ -25,7 +30,11 @@ class ScraperService:
     def fetch_full_text(url):
         """Uses newspaper3k to download and parse article text."""
         try:
-            response = ScraperService._session.get(url, timeout=ScraperService.ARTICLE_TIMEOUT)
+            response = ScraperService._get_session().get(
+                url,
+                timeout=ScraperService.ARTICLE_TIMEOUT,
+                allow_redirects=True,
+            )
             response.raise_for_status()
 
             article = NewspaperArticle(url)
@@ -42,3 +51,26 @@ class ScraperService:
         if hasattr(entry, 'published_parsed') and entry.published_parsed:
             return datetime.fromtimestamp(mktime(entry.published_parsed))
         return datetime.utcnow()
+
+    @staticmethod
+    def _get_session():
+        """Return a configured requests session with retries and UA."""
+        if ScraperService._session is None:
+            session = requests.Session()
+            session.headers.update({
+                "User-Agent": "Mozilla/5.0 (compatible; IntelQuartzBot/1.0)",
+            })
+
+            retry = Retry(
+                total=3,
+                backoff_factor=0.5,
+                status_forcelist=[429, 500, 502, 503, 504],
+                allowed_methods=["HEAD", "GET", "OPTIONS"],
+            )
+            adapter = HTTPAdapter(max_retries=retry, pool_connections=10, pool_maxsize=10)
+            session.mount("http://", adapter)
+            session.mount("https://", adapter)
+
+            ScraperService._session = session
+
+        return ScraperService._session
