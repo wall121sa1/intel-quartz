@@ -1,6 +1,7 @@
 """NER service with health checks and hot reload support."""
 from __future__ import annotations
 
+import logging
 import os
 import socket
 import time
@@ -8,7 +9,7 @@ from threading import Lock
 from typing import Any, Dict, List, Optional
 
 import spacy
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 from spacy.language import Language
 
@@ -20,6 +21,8 @@ SPACY_MODEL = os.getenv("SPACY_MODEL", "en_core_web_sm")
 
 START_TIME = time.time()
 rules_lock = Lock()
+logger = logging.getLogger("ner_service")
+logging.basicConfig(level=logging.INFO)
 
 
 class ProcessRequest(BaseModel):
@@ -69,6 +72,37 @@ def on_startup() -> None:
     initialize_state()
 
 
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log inbound requests with caller info for debugging cross-service traffic."""
+    caller = request.headers.get("X-Watcher-Client") or request.headers.get("User-Agent")
+    client_host = request.client.host if request.client else "unknown"
+    start = time.time()
+    try:
+        response = await call_next(request)
+    except Exception as exc:  # noqa: BLE001
+        elapsed = round((time.time() - start) * 1000, 2)
+        logger.exception(
+            "Request failed: path=%s caller=%s client=%s latency_ms=%.2f",
+            request.url.path,
+            caller,
+            client_host,
+            elapsed,
+        )
+        raise
+
+    elapsed = round((time.time() - start) * 1000, 2)
+    logger.info(
+        "Request completed: path=%s status=%s caller=%s client=%s latency_ms=%.2f",
+        request.url.path,
+        getattr(response, "status_code", "unknown"),
+        caller,
+        client_host,
+        elapsed,
+    )
+    return response
+
+
 @app.get("/health/live")
 def liveness() -> Dict[str, Any]:
     """Liveness probe used by load balancers to weed out dead pods."""
@@ -104,7 +138,7 @@ def health_root() -> Dict[str, Any]:
 
 
 @app.post("/process")
-def process(req: ProcessRequest) -> Dict[str, Any]:
+def process(req: ProcessRequest, request: Request) -> Dict[str, Any]:
     """
     Main NER endpoint.
     Input: {"text": "..."}
@@ -114,7 +148,12 @@ def process(req: ProcessRequest) -> Dict[str, Any]:
         nlp: Language = app.state.model
         rules_snapshot = {"tags": list(app.state.custom_rules.get("tags", []))}
 
-    doc = nlp(req.text)
+    try:
+        doc = nlp(req.text)
+    except Exception as exc:  # noqa: BLE001
+        caller = request.headers.get("X-Watcher-Client") or request.headers.get("User-Agent")
+        logger.exception("NER processing failed for caller=%s", caller)
+        raise HTTPException(status_code=500, detail=f"ner_processing_failed: {exc}")
 
     orgs: List[str] = []
     people: List[str] = []
