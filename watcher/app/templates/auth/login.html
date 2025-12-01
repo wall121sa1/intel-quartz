@@ -2,22 +2,34 @@
 
 {% block content %}
 <div class="row justify-content-center mt-5">
-    <div class="col-md-5 text-center">
+    <div class="col-md-5">
         <div class="card shadow-sm">
             <div class="card-body p-5">
-                <h2 class="mb-4">Welcome Back</h2>
-                <p class="text-muted mb-4">Sign in to Obsidian Ingest</p>
+                <h2 class="mb-4 text-center">Sign In</h2>
                 
-                {% if not providers %}
-                    <div class="alert alert-warning">
-                        No SSO providers configured.<br>
-                        <small>Check your config.py or environment variables.</small>
+                <form method="post" action="{{ url_for('auth.login') }}">
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" class="form-control" placeholder="name@company.com" required>
                     </div>
-                {% endif %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Password <small class="text-muted">(Optional for SSO)</small></label>
+                        <input type="password" name="password" class="form-control" placeholder="Local admin password">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100 btn-lg mb-3">Sign In</button>
+                </form>
+
+                {% if providers %}
+                <div class="text-center mb-3">
+                    <span class="text-muted bg-white px-2 position-relative" style="z-index: 1;">OR</span>
+                    <hr class="position-relative" style="top: -12px; z-index: 0;">
+                </div>
 
                 <div class="d-grid gap-2">
                     {% for p in providers %}
-                        <a href="{{ url_for('auth.sso_login', provider=p) }}" class="btn btn-lg btn-outline-dark text-capitalize">
+                        <a href="{{ url_for('auth.sso_login', provider=p) }}" class="btn btn-outline-dark text-capitalize">
                             {% if p == 'google' %}
                                 <i class="bi bi-google me-2"></i>
                             {% elif p == 'microsoft' %}
@@ -27,10 +39,11 @@
                             {% else %}
                                 <i class="bi bi-shield-lock me-2"></i>
                             {% endif %}
-                            Sign in with {{ p }}
+                            {{ p }}
                         </a>
                     {% endfor %}
                 </div>
+                {% endif %}
             </div>
         </div>
     </div>
