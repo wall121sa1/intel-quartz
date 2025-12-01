@@ -166,6 +166,18 @@ Where Markdown files are saved
 
 ./vault_data
 
+STORAGE_TYPE
+
+Choose `local` (default) or `s3` for where published Markdown is stored.
+
+local
+
+S3_BUCKET / S3_REGION / AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN
+
+AWS configuration used when `STORAGE_TYPE=s3`. You can omit the AWS credential keys when running on EC2/ECS with an IAM role that grants S3 write access.
+
+blank
+
 📂 Project Structure
 
 rss-to-obsidian/
@@ -182,3 +194,33 @@ rss-to-obsidian/
 ├── config.py              # App Config
 ├── requirements.txt       # Python Deps
 └── run.py                 # Application Entry Point
+
+## Beginner: Deploying to AWS (S3 for vault + RDS for Postgres)
+
+The app already understands AWS services—set a few environment variables and it will push Markdown to S3 and talk to RDS. Here is a minimal, copy-paste friendly path:
+
+1. **Create an S3 bucket** (e.g., `my-quartz-vault`) in your preferred region.
+2. **Grant write access** either by:
+   - Creating an IAM user with `s3:PutObject` on the bucket and generating access keys, or
+   - Attaching an IAM role with the same permission to your EC2/ECS task so you can skip hard-coding keys.
+3. **Spin up an RDS Postgres instance**. Note the hostname, database name, username, and password. Your SQLAlchemy URL will look like `postgresql+psycopg2://USER:PASSWORD@HOST:5432/DBNAME`.
+4. **Create a `.env` file** next to `watcher/docker-compose.yml` with the AWS settings:
+   ```env
+   FLASK_ENV=production
+   SECRET_KEY=change-me
+   ENCRYPTION_KEY=change-me-too
+   STORAGE_TYPE=s3
+   S3_BUCKET=my-quartz-vault
+   S3_REGION=us-east-1
+   AWS_ACCESS_KEY_ID=YOUR_KEY          # omit if using an instance/task role
+   AWS_SECRET_ACCESS_KEY=YOUR_SECRET   # omit if using an instance/task role
+   DATABASE_URL=postgresql+psycopg2://USER:PASSWORD@your-rds-endpoint:5432/DBNAME
+   ADMIN_EMAIL=admin@example.com
+   ADMIN_PASSWORD=super-strong
+   ALLOW_BOOTSTRAP_ADMIN=true
+   ```
+5. **Run with Docker Compose**:
+   ```bash
+   docker compose up -d --build
+   ```
+   The container will save approved articles to `s3://my-quartz-vault/...` and persist app data in your RDS database.

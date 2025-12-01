@@ -41,7 +41,8 @@ Watcher is a Flask-based ingestion pipeline that pulls RSS feeds, scrapes the fu
    - `SECRET_KEY` (required in production).
    - `ENCRYPTION_KEY` (required in production; persisted to `.dev_encryption_key` in development).【F:watcher/config.py†L1-L43】
    - `DATABASE_URL` (defaults to SQLite `watcher/app.db`).
-   - `VAULT_ROOT` (directory for exported Markdown).
+   - `VAULT_ROOT` (directory for exported Markdown when using local storage).
+   - `STORAGE_TYPE` (`local` or `s3`) plus `S3_BUCKET`, `S3_REGION`, and optional AWS credentials when you want Markdown files to land in an S3 bucket instead of the container filesystem.【F:watcher/config.py†L35-L41】【F:watcher/app/services/storage.py†L13-L52】
    - `ALLOW_BOOTSTRAP_ADMIN`, `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD` for one-time admin creation on startup.【F:watcher/run.py†L9-L35】
    - Optional SSO provider IDs/secrets for Google, Microsoft, Okta, or Cloudflare.【F:watcher/app/__init__.py†L16-L53】
 
