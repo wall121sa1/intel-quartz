@@ -54,7 +54,12 @@ class ScraperService:
 
     @staticmethod
     def _get_session():
-        """Return a configured requests session with retries and UA."""
+        """Return a configured requests session with retries and UA.
+
+        The adapter pools are deliberately sized to 1 to prevent concurrent
+        outbound fetches from this process. Combined with serial feed
+        processing in FeedManager, this keeps memory usage predictable.
+        """
         if ScraperService._session is None:
             session = requests.Session()
             session.headers.update({
@@ -67,7 +72,11 @@ class ScraperService:
                 status_forcelist=[429, 500, 502, 503, 504],
                 allowed_methods=["HEAD", "GET", "OPTIONS"],
             )
-            adapter = HTTPAdapter(max_retries=retry, pool_connections=10, pool_maxsize=10)
+            adapter = HTTPAdapter(
+                max_retries=retry,
+                pool_connections=1,
+                pool_maxsize=1,
+            )
             session.mount("http://", adapter)
             session.mount("https://", adapter)
 

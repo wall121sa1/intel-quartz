@@ -42,6 +42,7 @@ _remote_client_id = _remote_config["client_id"]
 _remote_session = None
 _remote_disable_until: datetime | None = None
 _remote_failures = 0
+_remote_usage_announced = False
 
 
 def _collect_custom_rules():
@@ -156,7 +157,7 @@ class NLPService:
         """
         Processes text to extract entities and inject wikilinks.
         """
-        global _remote_failures
+        global _remote_failures, _remote_usage_announced
         empty_result = {
             "entities": {"orgs": [], "people": [], "locs": [], "events": [], "tags": []},
             "content_with_links": text,
@@ -172,6 +173,12 @@ class NLPService:
                 custom_rules = _collect_custom_rules()
                 if custom_rules:
                     payload["rules"] = custom_rules
+
+                if not _remote_usage_announced:
+                    _remote_usage_announced = True
+                    message = f"NLP: Using remote NER service at {_remote_nlp_url}"
+                    logger.info(message)
+                    print(message)
 
                 response = _get_remote_session().post(
                     _remote_nlp_url.rstrip("/") + "/process",
