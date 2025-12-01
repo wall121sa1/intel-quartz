@@ -51,12 +51,14 @@ class StorageService:
         # Create S3 Key (Path) - Always use forward slashes for S3
         s3_key = f"{safe_source}/{year}/{month}/{day}/{filename}"
         
-        s3 = boto3.client(
-            's3',
-            aws_access_key_id=current_app.config.get('AWS_ACCESS_KEY_ID'),
-            aws_secret_access_key=current_app.config.get('AWS_SECRET_ACCESS_KEY'),
-            region_name=current_app.config.get('S3_REGION')
-        )
+        client_kwargs = {k: v for k, v in {
+            'aws_access_key_id': current_app.config.get('AWS_ACCESS_KEY_ID'),
+            'aws_secret_access_key': current_app.config.get('AWS_SECRET_ACCESS_KEY'),
+            'aws_session_token': current_app.config.get('AWS_SESSION_TOKEN'),
+            'region_name': current_app.config.get('S3_REGION'),
+        }.items() if v}
+
+        s3 = boto3.client('s3', **client_kwargs)
         
         s3.put_object(
             Bucket=bucket_name,

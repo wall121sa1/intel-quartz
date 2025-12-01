@@ -55,6 +55,12 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SCHEDULER_API_ENABLED = True
     VAULT_ROOT = os.environ.get('VAULT_ROOT') or os.path.join(basedir, 'vault_data')
+    STORAGE_TYPE = os.environ.get('STORAGE_TYPE', 'local').lower()
+    S3_BUCKET = os.environ.get('S3_BUCKET')
+    S3_REGION = os.environ.get('S3_REGION')
+    AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
+    AWS_SESSION_TOKEN = os.environ.get('AWS_SESSION_TOKEN')
 
     # Security
     ALLOWED_USERS = [user for user in os.environ.get('ALLOWED_USERS', '').split(',') if user]
