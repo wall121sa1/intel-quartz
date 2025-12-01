@@ -1,5 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, session, current_app
 from flask_login import login_user, logout_user, current_user
+from flask_limiter.util import get_remote_address
+from app import limiter
 from app.services.auth_manager import AuthManager
 from app.models import db, User, Tenant
 import pyotp
@@ -15,6 +17,7 @@ def finalize_login(user):
     return redirect(url_for('main.dashboard'))
 
 @bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit("5 per minute", key_func=get_remote_address, methods=["POST"])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('main.dashboard'))
@@ -68,6 +71,7 @@ def login():
 # For brevity, I am ensuring the login logic above handles both scenarios.
 
 @bp.route('/mfa', methods=['GET', 'POST'])
+@limiter.limit("10 per minute", key_func=get_remote_address, methods=["POST"])
 def mfa_challenge():
     if 'pre_mfa_user_id' not in session:
         return redirect(url_for('auth.login'))
@@ -89,6 +93,7 @@ def mfa_challenge():
     return render_template('auth/mfa_challenge.html')
 
 @bp.route('/login/callback')
+@limiter.limit("10 per minute", key_func=get_remote_address)
 def tenant_callback():
     domain = session.get('sso_domain')
     if not domain:
@@ -103,9 +108,13 @@ def tenant_callback():
         token = client.authorize_access_token()
         user_info = token.get('userinfo')
         email = user_info.get('email') or user_info.get('preferred_username')
-        
+
         if not email:
             flash("Identity provider did not return an email.")
+            return redirect(url_for('auth.login'))
+
+        if email.split('@')[1].lower() != tenant.domain.lower():
+            flash("Email domain does not match the configured tenant domain.")
             return redirect(url_for('auth.login'))
 
         user = User.query.filter_by(email=email).first()
@@ -134,6 +143,7 @@ def sso_login(provider):
     return client.authorize_redirect(redirect_uri)
 
 @bp.route('/sso/<provider>/callback')
+@limiter.limit("10 per minute", key_func=get_remote_address)
 def sso_callback(provider):
     from app import oauth
     client = oauth.create_client(provider)
@@ -143,16 +153,21 @@ def sso_callback(provider):
         user_info = token.get('userinfo')
         email = user_info.get('email') or user_info.get('preferred_username')
         if not email: return redirect(url_for('auth.login'))
-        
+
         allowed = current_app.config['ALLOWED_USERS']
+        allowed_domains = current_app.config.get('ALLOWED_DOMAINS', [])
+        domain = email.split('@')[1].lower()
         if allowed and email not in allowed:
             flash("Access Denied.")
             return redirect(url_for('auth.login'))
 
+        if allowed_domains and domain not in allowed_domains:
+            flash("Access Denied for this domain.")
+            return redirect(url_for('auth.login'))
+
         user = User.query.filter_by(email=email).first()
         if not user:
-            role = 'admin' if User.query.count() == 0 else 'editor'
-            user = User(email=email, username=user_info.get('name', email), role=role)
+            user = User(email=email, username=user_info.get('name', email), role='editor')
             db.session.add(user)
             db.session.commit()
         return finalize_login(user)

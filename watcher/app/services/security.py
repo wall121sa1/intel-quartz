@@ -1,6 +1,6 @@
+import base64
 from cryptography.fernet import Fernet
 from flask import current_app
-import base64
 
 class SecurityService:
     @staticmethod
@@ -28,8 +28,8 @@ class SecurityService:
             # Store as base64 string for database compatibility
             return base64.urlsafe_b64encode(encrypted_bytes).decode('utf-8')
         except Exception as e:
-            print(f"Encryption Error: {e}")
-            return None
+            current_app.logger.exception("Encryption failed")
+            raise
 
     @staticmethod
     def decrypt(encrypted_value):
@@ -43,5 +43,5 @@ class SecurityService:
             decrypted_bytes = cipher.decrypt(encrypted_bytes)
             return decrypted_bytes.decode('utf-8')
         except Exception as e:
-            print(f"Decryption Error: {e}")
-            return None
+            current_app.logger.exception("Decryption failed")
+            raise

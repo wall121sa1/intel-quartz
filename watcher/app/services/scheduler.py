@@ -15,14 +15,18 @@ def run_schedule_task(app):
         print("Scheduler: Starting Auto-Pull...")
         try:
             FeedManager.sync_all_feeds()
-            
+
             # Update Last Run Time
             from datetime import datetime, timezone
             from app.models import SystemConfig
             SystemConfig.set('last_run_timestamp', datetime.now(timezone.utc).isoformat())
+            SystemConfig.set('scheduler_failures', 0)
             print("Scheduler: Auto-Pull Complete.")
         except Exception as e:
-            print(f"Scheduler Error: {e}")
+            from app.models import SystemConfig
+            current_failures = int(SystemConfig.get('scheduler_failures', 0) or 0)
+            SystemConfig.set('scheduler_failures', current_failures + 1)
+            current_app.logger.exception("Scheduler Error")
 
 class SchedulerService:
     @staticmethod
