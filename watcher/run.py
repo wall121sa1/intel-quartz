@@ -1,5 +1,6 @@
 from app import create_app, db
 from app.models import User
+from app.services.scheduler import SchedulerService # Import this
 
 app = create_app()
 
@@ -9,16 +10,16 @@ def make_shell_context():
 
 if __name__ == '__main__':
     with app.app_context():
-        # Create tables if they don't exist
+        # 1. Create Tables
         db.create_all()
         
-        # Check if we have any users
+        # 2. Check for Default Admin
         if not User.query.first():
             print("Initialization: No users found.")
             print("Creating default local admin...")
             
             admin = User(email='admin@localhost', username='Super Admin', role='admin')
-            admin.set_password('admin') # Default Password
+            admin.set_password('admin') 
             
             db.session.add(admin)
             db.session.commit()
@@ -27,7 +28,9 @@ if __name__ == '__main__':
             print("DEFAULT ADMIN CREATED")
             print("Email:    admin@localhost")
             print("Password: admin")
-            print("PLEASE CHANGE THIS PASSWORD AFTER LOGGING IN")
             print("------------------------------------------------")
+
+        # 3. Refresh Scheduler (Now that DB is definitely ready)
+        SchedulerService.update_job_interval()
         
     app.run(debug=True, port=5000)
