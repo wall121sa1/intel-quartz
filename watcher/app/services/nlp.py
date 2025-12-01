@@ -1,9 +1,31 @@
 import spacy
 from flask import current_app
 from app.models import CustomEntity
+import logging
 
-# Global variable to hold the loaded model
+# Initialize logger
+logger = logging.getLogger(__name__)
+
+# Global variable
 _nlp_pipeline = None
+
+def load_custom_rules(nlp):
+    """Helper to load rules from DB into the provided nlp object"""
+    try:
+        # We need an app context to query the DB
+        if current_app:
+            entities = CustomEntity.query.all()
+            if not entities:
+                return
+
+            ruler = nlp.get_pipe("entity_ruler")
+            ruler.clear_patterns() # Clear old to avoid duplicates on reload
+            
+            patterns = [{"label": e.label, "pattern": e.text} for e in entities]
+            ruler.add_patterns(patterns)
+            logger.info(f"NLP: Loaded {len(patterns)} custom rules.")
+    except Exception as e:
+        logger.warning(f"NLP: DB Rule Load Error (Ignore if DB init): {e}")
 
 def get_nlp_pipeline():
     global _nlp_pipeline
@@ -11,117 +33,80 @@ def get_nlp_pipeline():
     if _nlp_pipeline is not None:
         return _nlp_pipeline
 
-    print("NLP: Initializing Pipeline...")
-    
+    logger.info("NLP: Loading Spacy Model...")
     try:
-        _nlp_pipeline = spacy.load("en_core_web_sm")
+        # Disable components we don't need to save RAM (e.g., parser if we only need entities)
+        # keeping 'ner' is essential. 'parser' is heavy, disable if not doing dependency parsing.
+        _nlp_pipeline = spacy.load("en_core_web_sm", disable=['parser', 'tagger', 'attribute_ruler', 'lemmatizer'])
+        
+        # Add EntityRuler
+        if "entity_ruler" not in _nlp_pipeline.pipe_names:
+            _nlp_pipeline.add_pipe("entity_ruler", before="ner", config={"overwrite_ents": True})
+        
+        # Load rules
+        load_custom_rules(_nlp_pipeline)
+
     except OSError:
-        print("CRITICAL: Spacy model not found. Run: python -m spacy download en_core_web_sm")
-        return None
-
-    # 1. Add EntityRuler (Rule-based matching)
-    if "entity_ruler" not in _nlp_pipeline.pipe_names:
-        ruler = _nlp_pipeline.add_pipe("entity_ruler", before="ner", config={"overwrite_ents": True})
-    else:
-        ruler = _nlp_pipeline.get_pipe("entity_ruler")
-        ruler.clear_patterns()
-
-    # 2. Fetch rules from Database
-    try:
-        if current_app:
-            with current_app.app_context():
-                entities = CustomEntity.query.all()
-                patterns = []
-                for e in entities:
-                    patterns.append({"label": e.label, "pattern": e.text})
-                
-                # FIX: Only add patterns if list is not empty to avoid Spacy UserWarning [W036]
-                if patterns:
-                    ruler.add_patterns(patterns)
-                    print(f"NLP: Loaded {len(patterns)} custom rules.")
-                else:
-                    print("NLP: No custom rules found in DB (EntityRuler empty).")
-                    
-    except Exception as e:
-        print(f"NLP Warning: Could not load custom entities. Error: {e}")
+        logger.critical("NLP: Model not found. downloading...")
+        from spacy.cli import download
+        download("en_core_web_sm")
+        _nlp_pipeline = spacy.load("en_core_web_sm", disable=['parser', 'tagger', 'attribute_ruler', 'lemmatizer'])
 
     return _nlp_pipeline
 
 class NLPService:
     @staticmethod
-    def reload_model():
-        """Force reload of model to pick up new DB entries"""
-        global _nlp_pipeline
-        _nlp_pipeline = None
-        get_nlp_pipeline()
-
-    @staticmethod
     def process_text(text):
+        """
+        Processes text to extract entities and inject wikilinks.
+        """
         nlp = get_nlp_pipeline()
         
-        # Default empty structure to prevent KeyError in manager.py
         empty_result = {
-            "entities": {
-                "orgs": [], "people": [], "locs": [], 
-                "events": [], "tags": [] # FIX: Added 'tags' key
-            },
+            "entities": {"orgs": [], "people": [], "locs": [], "events": [], "tags": []},
             "content_with_links": text
         }
 
         if not nlp or not text:
             return empty_result
 
+        # Increase max length for large articles (default is 1,000,000)
+        nlp.max_length = 2000000 
+
         doc = nlp(text)
         
-        # 1. Extract unique entities
-        orgs = set()
-        people = set()
-        locs = set()
-        events = set()
-        tags = set()
+        # 1. Extract unique entities using set comprehensions
+        orgs = {ent.text for ent in doc.ents if ent.label_ == "ORG"}
+        people = {ent.text for ent in doc.ents if ent.label_ == "PERSON"}
+        locs = {ent.text for ent in doc.ents if ent.label_ in ["GPE", "LOC"]}
+        events = {ent.text for ent in doc.ents if ent.label_ in ["EVENT", "DATE"] if ent.label_ == "EVENT"} # Strict event check
+        tags = {ent.text for ent in doc.ents if ent.label_ in ["TAG", "TOPIC"]}
 
-        for ent in doc.ents:
-            if ent.label_ == "ORG":
-                orgs.add(ent.text)
-            elif ent.label_ == "PERSON":
-                people.add(ent.text)
-            elif ent.label_ in ["GPE", "LOC"]:
-                locs.add(ent.text)
-            elif ent.label_ in ["EVENT", "DATE"]: 
-                if ent.label_ == "EVENT":
-                    events.add(ent.text)
-            elif ent.label_ in ["TAG", "TOPIC"]: 
-                # FIX: Support auto-tagging if user adds rules with 'TAG' label
-                tags.add(ent.text)
-
-        # 2. Inject WikiLinks
+        # 2. Inject WikiLinks (Reverse order replacement)
         entities_reversed = sorted(doc.ents, key=lambda e: e.start_char, reverse=True)
         new_content = text
+        
+        # Optimization: Use a set for faster lookup
+        linkable_labels = {"ORG", "PERSON", "GPE", "LOC", "EVENT", "TAG", "TOPIC"}
 
         for ent in entities_reversed:
-            # We treat TAG/TOPIC as metadata, not necessarily wikilinks in text, 
-            # but you can add them to this list if you want them linked.
-            if ent.label_ in ["ORG", "PERSON", "GPE", "LOC", "EVENT", "TAG", "TOPIC"]:
-                start = ent.start_char
-                end = ent.end_char
+            if ent.label_ in linkable_labels:
+                start, end = ent.start_char, ent.end_char
+                # Check for existing brackets [[...]]
+                if start >= 2 and new_content[start-2:start] == "[[":
+                    continue
                 
-                # Check surroundings
-                is_wrapped = (start >= 2 and new_content[start-2:start] == "[[")
-                
-                if not is_wrapped:
-                    new_content = (
-                        new_content[:start] 
-                        + "[[" + new_content[start:end] + "]]" 
-                        + new_content[end:]
-                    )
+                # Check for markdown links [...] or (...)
+                # Simple heuristic: don't break existing markdown links
+                if start > 0 and new_content[start-1] == "[":
+                    continue
+
+                new_content = f"{new_content[:start]}[[{new_content[start:end]}]]{new_content[end:]}"
 
         return {
             "entities": {
-                "orgs": list(orgs),
-                "people": list(people),
-                "locs": list(locs),
-                "events": list(events),
-                "tags": list(tags) # FIX: Return the tags list
+                "orgs": list(orgs), "people": list(people), "locs": list(locs),
+                "events": list(events), "tags": list(tags)
             },
             "content_with_links": new_content
         }

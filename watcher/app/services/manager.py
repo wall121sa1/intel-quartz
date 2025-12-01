@@ -8,6 +8,10 @@ from datetime import datetime
 class FeedManager:
     @staticmethod
     def sync_all_feeds():
+        """
+        Dispatches a background task for every feed.
+        This function returns almost immediately, preventing blocking.
+        """
         feeds = Feed.query.all()
         stats = {'added': 0, 'errors': 0, 'skipped': 0}
 
