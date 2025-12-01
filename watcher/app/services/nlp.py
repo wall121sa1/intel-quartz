@@ -1,9 +1,14 @@
-import os
 import logging
+import os
+import socket
+from datetime import datetime, timedelta
 
 import requests
 import spacy
 from flask import current_app
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
 from app.models import CustomEntity
 
 # Initialize logger
@@ -11,7 +16,33 @@ logger = logging.getLogger(__name__)
 
 # Global variable
 _nlp_pipeline = None
-_remote_nlp_url = os.getenv("NER_SERVICE_URL", "http://ner:8000")
+
+
+def _load_remote_config():
+    """Read remote NER configuration from the environment."""
+
+    return {
+        "url": os.getenv("NER_SERVICE_URL", "http://ner:8000"),
+        "timeout": float(os.getenv("NER_SERVICE_TIMEOUT", "15")),
+        "failure_threshold": int(os.getenv("NER_SERVICE_FAILURE_THRESHOLD", "3")),
+        "backoff_seconds": int(os.getenv("NER_SERVICE_BACKOFF_SECONDS", "300")),
+        "pool_size": int(os.getenv("NER_SERVICE_POOL_SIZE", "10")),
+        "client_id": os.getenv("NER_SERVICE_CLIENT_ID", socket.gethostname()),
+    }
+
+
+_remote_config = _load_remote_config()
+_remote_nlp_url = _remote_config["url"]
+_remote_timeout = _remote_config["timeout"]
+_remote_failure_threshold = _remote_config["failure_threshold"]
+_remote_backoff_seconds = _remote_config["backoff_seconds"]
+_remote_pool_size = _remote_config["pool_size"]
+_remote_client_id = _remote_config["client_id"]
+
+_remote_session = None
+_remote_disable_until: datetime | None = None
+_remote_failures = 0
+_remote_usage_announced = False
 
 
 def _collect_custom_rules():
@@ -36,6 +67,56 @@ def load_custom_rules(nlp):
     ruler.clear_patterns()  # Clear old to avoid duplicates on reload
     ruler.add_patterns(patterns)
     logger.info("NLP: Loaded %s custom rules.", len(patterns))
+
+
+def _get_remote_session():
+    """Return a pooled HTTP session with retries for the NER service."""
+    global _remote_session
+
+    if _remote_session is None:
+        adapter = HTTPAdapter(
+            pool_connections=_remote_pool_size,
+            pool_maxsize=_remote_pool_size,
+            max_retries=Retry(
+                total=2,
+                backoff_factor=0.5,
+                status_forcelist=[502, 503, 504],
+                allowed_methods={"POST"},
+                raise_on_status=False,
+            ),
+        )
+
+        session = requests.Session()
+        session.headers.update(
+            {
+                "User-Agent": f"watcher-ner-client/{_remote_client_id}",
+                "X-Watcher-Client": _remote_client_id,
+            }
+        )
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+        _remote_session = session
+
+    return _remote_session
+
+
+def _remote_available():
+    return not _remote_disable_until or datetime.utcnow() >= _remote_disable_until
+
+
+def _record_remote_failure(exc: Exception):
+    """Track remote failures and temporarily pause remote calls on repeated errors."""
+    global _remote_failures, _remote_disable_until
+
+    _remote_failures += 1
+    if _remote_failures >= _remote_failure_threshold:
+        _remote_disable_until = datetime.utcnow() + timedelta(seconds=_remote_backoff_seconds)
+        _remote_failures = 0
+        logger.warning(
+            "NLP: Remote service unhealthy; pausing requests for %s seconds (%s)",
+            _remote_backoff_seconds,
+            exc,
+        )
 
 
 def get_nlp_pipeline():
@@ -76,6 +157,7 @@ class NLPService:
         """
         Processes text to extract entities and inject wikilinks.
         """
+        global _remote_failures, _remote_usage_announced
         empty_result = {
             "entities": {"orgs": [], "people": [], "locs": [], "events": [], "tags": []},
             "content_with_links": text,
@@ -85,26 +167,38 @@ class NLPService:
             return empty_result
 
         # Always prefer the remote NER endpoint (default) so models stay centralized.
-        try:
-            payload = {"text": text}
-            custom_rules = _collect_custom_rules()
-            if custom_rules:
-                payload["rules"] = custom_rules
+        if _remote_available():
+            try:
+                payload = {"text": text}
+                custom_rules = _collect_custom_rules()
+                if custom_rules:
+                    payload["rules"] = custom_rules
 
-            response = requests.post(
-                _remote_nlp_url.rstrip("/") + "/process",
-                json=payload,
-                timeout=15,
+                if not _remote_usage_announced:
+                    _remote_usage_announced = True
+                    message = f"NLP: Using remote NER service at {_remote_nlp_url}"
+                    logger.info(message)
+                    print(message)
+
+                response = _get_remote_session().post(
+                    _remote_nlp_url.rstrip("/") + "/process",
+                    json=payload,
+                    timeout=_remote_timeout,
+                )
+                response.raise_for_status()
+                data = response.json()
+                _remote_failures = 0
+                if "content_with_links" in data and "entities" in data:
+                    return data
+
+                logger.warning("NLP: Remote response missing expected keys, falling back to local pipeline")
+            except Exception as exc:
+                _record_remote_failure(exc)
+                logger.warning("NLP: Remote service unavailable, falling back to local pipeline: %s", exc)
+        elif _remote_disable_until:
+            logger.debug(
+                "NLP: Skipping remote NER until %s after repeated failures.", _remote_disable_until.isoformat()
             )
-            response.raise_for_status()
-            data = response.json()
-
-            if "content_with_links" in data and "entities" in data:
-                return data
-
-            logger.warning("NLP: Remote response missing expected keys, falling back to local pipeline")
-        except Exception as exc:
-            logger.warning("NLP: Remote service unavailable, falling back to local pipeline: %s", exc)
 
         return NLPService._process_text_local(text, empty_result)
 
