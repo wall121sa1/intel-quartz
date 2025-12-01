@@ -32,6 +32,12 @@ services:
     restart: unless-stopped
     entrypoint: ["/app/entrypoint.sh"]
 
+    deploy:
+      resources:
+        limits:
+          memory: 12G
+
 volumes:
   watcher-vault:
   watcher-db:
+
