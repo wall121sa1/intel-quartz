@@ -4,6 +4,7 @@ from flask_migrate import Migrate
 from config import Config
 from app.models import db, User
 from authlib.integrations.flask_client import OAuth
+from app.services.scheduler import SchedulerService
 
 migrate = Migrate()
 login = LoginManager()
@@ -63,6 +64,8 @@ def create_app(config_class=Config):
     app.register_blueprint(bp_main)
     app.register_blueprint(bp_auth, url_prefix='/auth')
     app.register_blueprint(bp_settings, url_prefix='/settings')
+
+    SchedulerService.init_app(app)
 
     return app
 

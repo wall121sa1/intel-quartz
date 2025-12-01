@@ -78,5 +78,6 @@ class FeedManager:
                     stats['errors'] += 1
             
             db.session.commit()
+        SystemConfig.set('last_run_timestamp', datetime.utcnow().isoformat())
             
         return stats

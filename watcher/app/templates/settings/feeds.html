@@ -32,6 +32,13 @@
         </div>
     </div>
 
+    <!-- Scheduler Config -->
+    <form class="d-flex align-items-center" action="{{ url_for('settings.configure_schedule') }}" method="post">
+        <label class="me-2 text-muted small">Auto-Pull (Mins):</label>
+        <input type="number" name="interval" class="form-control form-control-sm me-2" style="width: 80px;" value="{{ current_interval }}" min="0">
+        <button type="submit" class="btn btn-sm btn-outline-primary">Set</button>
+    </form>
+
     <!-- Feed List -->
     <div class="col-md-8">
         <div class="card">
