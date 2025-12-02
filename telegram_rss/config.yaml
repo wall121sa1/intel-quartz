@@ -14,11 +14,6 @@ staging:
 
 bots:
   # Bot 1
-  - name: "ru_crime_bot"
-    theme: "ru_crime"
-    session_name: "ru_crime_session"
-
-  # Bot 2
-  - name: "fa_markets_bot"
-    theme: "fa_markets"
-    session_name: "fa_markets_session"
+  - name: "MESS_BOT"
+    theme: "None"
+    session_name: "None"
