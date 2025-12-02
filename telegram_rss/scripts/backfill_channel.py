@@ -5,15 +5,17 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.append(str(ROOT))
+
 from app.utils import telethon_to_safe_json
 
 from dotenv import load_dotenv
 from telethon import TelegramClient
 
 # Make project-root 'app' importable
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.append(str(ROOT))
+
 
 from app.config import load_config
 from app.db import init_db, get_session
