@@ -49,21 +49,23 @@ def dashboard(request: Request, db: Session = Depends(get_session)):
 @router.get("/dashboard/channels", response_class=HTMLResponse)
 def list_channels(db: Session = Depends(get_session)):
     channels = db.query(Channel).all()
-    html = ["<h1>Channels</h1><table border='1'>"]
-    html.append("<tr><th>telegram_id</th><th>language</th><th>topics</th><th>bot</th></tr>")
+    html_parts = ["<h1>Channels</h1><table border='1'>"]
+    html_parts.append(
+        "<tr><th>telegram_id</th><th>language</th><th>topics</th><th>bot</th></tr>"
+    )
     for ch in channels:
         safe_telegram_id = html.escape(ch.telegram_id)
         safe_language = html.escape(ch.language)
         safe_topics = ", ".join(html.escape(t) for t in ch.topics)
         safe_bot = html.escape(ch.bot.name)
-        html.append(
+        html_parts.append(
             f"<tr><td>{safe_telegram_id}</td><td>{safe_language}</td>"
             f"<td>{safe_topics}</td><td>{safe_bot}</td></tr>"
         )
-    html.append("</table>")
-    html.append('<p><a href="/dashboard/channels/new">Add channel</a></p>')
-    html.append('<p><a href="/dashboard">Back</a></p>')
-    return HTMLResponse("".join(html))
+    html_parts.append("</table>")
+    html_parts.append('<p><a href="/dashboard/channels/new">Add channel</a></p>')
+    html_parts.append('<p><a href="/dashboard">Back</a></p>')
+    return HTMLResponse("".join(html_parts))
 
 
 @router.get("/dashboard/channels/new", response_class=HTMLResponse)
@@ -72,7 +74,7 @@ def new_channel_form(db: Session = Depends(get_session)):
     options = "".join(
         [f"<option value='{b.id}'>{html.escape(b.name)}</option>" for b in bots]
     )
-    html = f"""
+    html_content = f"""
     <h1>Add Channel</h1>
     <form method="post" action="/dashboard/channels">
       <label>Telegram ID (e.g. @mychannel): <input name="telegram_id"></label><br>
@@ -83,7 +85,7 @@ def new_channel_form(db: Session = Depends(get_session)):
     </form>
     <p><a href="/dashboard">Back</a></p>
     """
-    return HTMLResponse(html)
+    return HTMLResponse(html_content)
 
 
 @router.post("/dashboard/channels")
