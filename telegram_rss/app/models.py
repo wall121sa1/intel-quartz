@@ -29,6 +29,10 @@ class Channel(Base):
     bot_id = sa.Column(sa.BigInteger, sa.ForeignKey("bots.id"), nullable=False)
     bot = relationship("Bot", back_populates="channels")
 
+    messages = relationship(
+        "Message", back_populates="channel", cascade="all, delete-orphan"
+    )
+
     last_msg_id = sa.Column(sa.BigInteger, nullable=True)
 
     created_at = sa.Column(sa.DateTime(timezone=True), server_default=sa.func.now())
@@ -39,7 +43,7 @@ class Message(Base):
     __tablename__ = "messages"
     id = sa.Column(sa.BigInteger, primary_key=True)
     channel_id = sa.Column(sa.BigInteger, sa.ForeignKey("channels.id"), nullable=False)
-    channel = relationship("Channel")
+    channel = relationship("Channel", back_populates="messages")
 
     telegram_msg_id = sa.Column(sa.BigInteger, nullable=False)
     sent_at = sa.Column(sa.DateTime(timezone=True), nullable=False)
@@ -71,6 +75,8 @@ class Feed(Base):
         sa.UniqueConstraint("language", "topic", name="uq_language_topic"),
     )
 
+    items = relationship("FeedItem", back_populates="feed", cascade="all, delete-orphan")
+
 
 class FeedItem(Base):
     __tablename__ = "feed_items"
@@ -78,11 +84,18 @@ class FeedItem(Base):
     feed_id = sa.Column(sa.BigInteger, sa.ForeignKey("feeds.id"), nullable=False)
     message_id = sa.Column(sa.BigInteger, sa.ForeignKey("messages.id"), nullable=False)
 
-    feed = relationship("Feed")
-    message = relationship("Message")
+    feed = relationship("Feed", back_populates="items")
+    message = relationship("Message", back_populates="feed_items")
 
     published_at = sa.Column(sa.DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
         sa.UniqueConstraint("feed_id", "message_id", name="uq_feed_message"),
     )
+
+
+# Back-populates for Message -> FeedItem declared after FeedItem definition to avoid
+# referencing FeedItem before it is declared.
+Message.feed_items = relationship(
+    "FeedItem", back_populates="message", cascade="all, delete-orphan"
+)
