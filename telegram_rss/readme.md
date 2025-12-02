@@ -7,14 +7,6 @@ Telegram RSS Service ingests messages from configured Telegram channels, stores 
 - Releases new messages into topic/language-specific feeds on a schedule.
 - Serves RSS feeds (`/rss/{language}/{topic}`) suitable for readers or downstream processing.
 - Provides a basic dashboard to view bots, list channels, and add new channels.
-
-## Project structure
-- `app/config.py` — loads settings from `config.yaml` and environment variables.
-- `app/main.py` — FastAPI application with lifespan setup for background tasks.
-- `app/telegram_poller.py` — polls Telegram channels per bot and persists messages.
-- `app/release_scheduler.py` — periodically promotes recent messages into feed items.
-- `app/rss_api.py` — renders RSS feeds from staged items.
-- `app/dashboard.py` — simple HTML dashboard for bots and channels.
 - `app/models.py` — SQLAlchemy models for bots, channels, messages, feeds, and feed items.
 - `config.yaml` — default configuration for polling, staging, database, and bot identities.
 - `.env` (user-supplied) — secrets such as API IDs and hashes for each bot.
@@ -35,7 +27,7 @@ Telegram RSS Service ingests messages from configured Telegram channels, stores 
    ```
 4. Open the dashboard at http://localhost:2000/dashboard to view bots and channels.
 5. Access RSS feeds at http://localhost:2000/rss/{language}/{topic} (for example, `/rss/ru/crime`).
-6. The PostgreSQL service is exposed on host port `3452` to avoid conflicts with local databases (map your DB clients to `localhost:3452`).
+6. The PostgreSQL service listens on non-default port `3432` in the container and is exposed on the same host port. Point DB clients to `localhost:3432` to match the configured `DATABASE_URL`.
 
 ## Configuration reference
 ### Environment variables (.env)

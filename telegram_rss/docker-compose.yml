@@ -3,16 +3,16 @@ version: "3.9"
 services:
   postgres:
     image: postgres:16
+    command: ["postgres", "-p", "3432"]
     environment:
       POSTGRES_USER: rssuser
       POSTGRES_PASSWORD: rsspass
       POSTGRES_DB: telegram_rss
-      ports: 3432:3432
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      # Expose database on a non-default host port to avoid local conflicts
-      - "3452:5432"
+      # Expose database on a non-default port to avoid local conflicts
+      - "3432:3432"
     restart: unless-stopped
 
   telegram_rss:
@@ -30,8 +30,8 @@ services:
       MESS_BOT_API_HASH: ${MESS_BOT_API_HASH:?Set API_HASH in .env}
 
       # Bot 2 (fa_markets_bot)
-     # FA_MARKETS_BOT_API_ID: ${FA_MARKETS_BOT_API_ID:?Set FA_MARKETS_BOT_API_ID in .env}
-     # FA_MARKETS_BOT_API_HASH: ${FA_MARKETS_BOT_API_HASH:?Set FA_MARKETS_BOT_API_HASH in .env}
+      # FA_MARKETS_BOT_API_ID: ${FA_MARKETS_BOT_API_ID:?Set FA_MARKETS_BOT_API_ID in .env}
+      # FA_MARKETS_BOT_API_HASH: ${FA_MARKETS_BOT_API_HASH:?Set FA_MARKETS_BOT_API_HASH in .env}
     volumes:
       - ./config.yaml:/app/config.yaml:ro
       # Persist Telethon session files across restarts without shadowing the app code
