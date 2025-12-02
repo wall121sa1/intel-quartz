@@ -10,6 +10,9 @@ services:
       ports: 3432:3432
     volumes:
       - pgdata:/var/lib/postgresql/data
+    ports:
+      # Expose database on a non-default host port to avoid local conflicts
+      - "3452:5432"
     restart: unless-stopped
 
   telegram_rss:
