@@ -21,6 +21,7 @@ WORKDIR /app
 
 # Install Python dependencies first to leverage Docker layer caching
 COPY watcher/requirements.txt ./requirements.txt
+RUN pip install --upgrade pip setuptools wheel
 RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
 
 # Copy application code
