@@ -1,5 +1,17 @@
 version: "3.9"
 services:
+  watcher_db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: watcher
+      POSTGRES_PASSWORD: watcherpass
+      POSTGRES_DB: watcher
+    volumes:
+      - watcher-db:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
   watcher:
     build:
       context: ..
@@ -11,7 +23,7 @@ services:
       ENABLE_SCHEDULER: "false"
       SECRET_KEY: ${SECRET_KEY:-change-me}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change-me-too}
-      DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/app.db}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://watcher:watcherpass@watcher_db:5432/watcher}
       STORAGE_TYPE: ${STORAGE_TYPE:-local}
       VAULT_ROOT: ${VAULT_ROOT:-/app/vault_data}
       S3_BUCKET: ${S3_BUCKET:-}
@@ -35,8 +47,10 @@ services:
     restart: unless-stopped
     entrypoint: ["/app/entrypoint.sh"]
     depends_on:
+      - watcher_db
       - ner
       - libretranslate
+      - telegram_rss
 
     deploy:
       resources:
@@ -54,7 +68,7 @@ services:
       ENABLE_SCHEDULER: "true"
       SECRET_KEY: ${SECRET_KEY:-change-me}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change-me-too}
-      DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/app.db}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://watcher:watcherpass@watcher_db:5432/watcher}
       STORAGE_TYPE: ${STORAGE_TYPE:-local}
       VAULT_ROOT: ${VAULT_ROOT:-/app/vault_data}
       S3_BUCKET: ${S3_BUCKET:-}
@@ -75,7 +89,9 @@ services:
     restart: unless-stopped
     entrypoint: ["/app/entrypoint.sh"]
     depends_on:
+      - watcher_db
       - libretranslate
+      - telegram_rss
     deploy:
       resources:
         limits:
@@ -104,6 +120,38 @@ services:
       - "8000:8000"
     restart: unless-stopped
 
+  telegram_rss_db:
+    image: postgres:16
+    command: ["postgres", "-p", "3432"]
+    environment:
+      POSTGRES_USER: rssuser
+      POSTGRES_PASSWORD: rsspass
+      POSTGRES_DB: telegram_rss
+    volumes:
+      - telegram_rss_pgdata:/var/lib/postgresql/data
+    ports:
+      - "3432:3432"
+    restart: unless-stopped
+
+  telegram_rss:
+    build:
+      context: ../telegram_rss
+      dockerfile: Dockerfile
+    depends_on:
+      - telegram_rss_db
+    env_file:
+      - ../telegram_rss/.env
+    environment:
+      DATABASE_URL: ${TELEGRAM_RSS_DATABASE_URL:-postgresql+psycopg://rssuser:rsspass@telegram_rss_db:3432/telegram_rss}
+      MESS_BOT_API_ID: ${MESS_BOT_API_ID:?Set BOT_API_ID in .env}
+      MESS_BOT_API_HASH: ${MESS_BOT_API_HASH:?Set API_HASH in .env}
+    volumes:
+      - ../telegram_rss/config.yaml:/app/config.yaml:ro
+      - ../telegram_rss/sessions:/app/sessions
+    ports:
+      - "2000:8000"
+    restart: unless-stopped
+
   filebrowser:
       image: filebrowser/filebrowser:latest
       ports:
@@ -118,4 +166,5 @@ volumes:
   watcher-db:
   libretranslate_api_keys:
   libretranslate_models:
+  telegram_rss_pgdata:
 
