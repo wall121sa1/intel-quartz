@@ -11,6 +11,10 @@
             <div class="card-body">
                 <form action="{{ url_for('settings.add_user') }}" method="post">
                     <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" class="form-control" required placeholder="user@example.com">
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">Username</label>
                         <input type="text" name="username" class="form-control" required>
                     </div>
@@ -39,8 +43,10 @@
                     <thead>
                         <tr>
                             <th>ID</th>
+                            <th>Email</th>
                             <th>Username</th>
                             <th>Role</th>
+                            <th>Status</th>
                             <th>Action</th>
                         </tr>
                     </thead>
@@ -48,6 +54,7 @@
                         {% for user in users %}
                         <tr>
                             <td>{{ user.id }}</td>
+                            <td>{{ user.email }}</td>
                             <td>
                                 {{ user.username }}
                                 {% if user.id == current_user.id %}
@@ -62,8 +69,28 @@
                                 {% endif %}
                             </td>
                             <td>
+                                {% if user.must_change_password %}
+                                <span class="badge bg-warning text-dark">Temp password</span>
+                                {% else %}
+                                <span class="badge bg-success">Active</span>
+                                {% endif %}
+                            </td>
+                            <td>
                                 {% if user.id != current_user.id %}
-                                <a href="{{ url_for('settings.delete_user', id=user.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete user?')">Delete</a>
+                                <div class="d-flex gap-2">
+                                    <form action="{{ url_for('settings.change_role', id=user.id) }}" method="post" class="d-flex gap-1 align-items-center">
+                                        <select name="role" class="form-select form-select-sm w-auto">
+                                            <option value="editor" {% if user.role == 'editor' %}selected{% endif %}>Editor</option>
+                                            <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+                                        </select>
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">Update</button>
+                                    </form>
+                                    <form action="{{ url_for('settings.admin_reset_password', id=user.id) }}" method="post">
+                                        <button type="submit" class="btn btn-sm btn-warning" onclick="return confirm('Generate a temporary password for this user?')">Reset Password</button>
+                                    </form>
+                                    <a href="{{ url_for('settings.admin_reset_mfa', id=user.id) }}" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Disable MFA for this user?')">Reset MFA</a>
+                                    <a href="{{ url_for('settings.delete_user', id=user.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete user?')">Delete</a>
+                                </div>
                                 {% endif %}
                             </td>
                         </tr>

@@ -1,7 +1,15 @@
+import re
+import secrets
+import string
+
 from flask import render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from app.models import db, User
 from app.routes.settings import bp
+
+def _generate_temp_password(length=16):
+    alphabet = string.ascii_letters + string.digits + "-_!@#"
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 @bp.route('/users')
 @login_required
@@ -18,13 +26,24 @@ def add_user():
     if current_user.role != 'admin':
         return redirect(url_for('main.dashboard'))
 
-    email = request.form.get('email')
-    username = request.form.get('username') or email.split('@')[0]
+    email = (request.form.get('email') or '').strip().lower()
+    username = request.form.get('username')
     password = request.form.get('password')
     role = request.form.get('role')
 
+    if not email or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        flash('Please provide a valid email address for the new user')
+        return redirect(url_for('settings.users'))
+
+    if not username:
+        username = email.split('@')[0]
+
     if User.query.filter_by(email=email).first():
         flash('Email already exists')
+        return redirect(url_for('settings.users'))
+
+    if not password:
+        flash('Password cannot be empty')
         return redirect(url_for('settings.users'))
 
     new_user = User(email=email, username=username, role=role)
@@ -67,17 +86,17 @@ def admin_reset_mfa(id):
 def admin_reset_password(id):
     if current_user.role != 'admin':
         return redirect(url_for('main.dashboard'))
-        
+
     user = User.query.get_or_404(id)
-    new_pass = request.form.get('password')
-    
-    if new_pass:
-        user.set_password(new_pass)
-        db.session.commit()
-        flash(f"Password reset for {user.email}")
-    else:
-        flash("Password cannot be empty")
-        
+    temp_password = _generate_temp_password()
+    user.set_password(temp_password)
+    user.must_change_password = True
+    db.session.commit()
+    flash(
+        f"Temporary password for {user.email}: {temp_password}. "
+        "The user will be prompted to change it on next login."
+    )
+
     return redirect(url_for('settings.users'))
 
 @bp.route('/users/change_role/<int:id>', methods=['POST'])
