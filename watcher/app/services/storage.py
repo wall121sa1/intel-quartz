@@ -6,12 +6,12 @@ from flask import current_app
 
 class StorageService:
     @staticmethod
-    def save_article_to_disk(article_obj, feed_name, reliability):
+    def save_article_to_disk(article_obj, feed_name, reliability, feed_type=None):
         """
         Routes the save operation to either Local Disk or S3.
         """
         storage_type = current_app.config.get('STORAGE_TYPE', 'local').lower()
-        file_content = StorageService._format_markdown(article_obj, feed_name, reliability)
+        file_content = StorageService._format_markdown(article_obj, feed_name, reliability, feed_type)
         entities_payload = StorageService._build_entities_payload(article_obj)
 
         # Define the structure: Source / Year / Month / Day / Title.md
@@ -110,7 +110,7 @@ class StorageService:
         return f"s3://{bucket_name}/{s3_markdown_key}"
 
     @staticmethod
-    def _format_markdown(article, feed_name, reliability):
+    def _format_markdown(article, feed_name, reliability, feed_type):
         def yaml_list(csv_string):
             if not csv_string:
                 return ""
@@ -124,6 +124,7 @@ added: {article.added_date.strftime('%Y-%m-%d %H:%M')}
 source: "{feed_name}"
 reliability: "{reliability}"
 language: "{article.language}"
+feed_type: "{feed_type or ''}"
 tags:
 {yaml_list(article.tags)}
 organizations:

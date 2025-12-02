@@ -26,6 +26,16 @@
                             <option value="Low">Low</option>
                         </select>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Source Type</label>
+                        <input type="hidden" name="type_tag" id="typeTagInput">
+                        <div class="d-flex flex-wrap gap-2" id="typeTagCloud">
+                            {% for tag in tags %}
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-tag-name="{{ tag.name }}">{{ tag.name }}</button>
+                            {% endfor %}
+                        </div>
+                        <div class="form-text">Select the feed type from the tag cloud. {% if is_admin %}Manage options in <a href="{{ url_for('settings.tags') }}">Topic Tags</a>.{% else %}Only administrators can update tag options.{% endif %}</div>
+                    </div>
                     <button type="submit" class="btn btn-primary w-100">Add Feed</button>
                 </form>
             </div>
@@ -43,6 +53,7 @@
                         <tr>
                             <th>Name</th>
                             <th>Reliability</th>
+                            <th>Type</th>
                             <th>URL</th>
                             <th>Action</th>
                         </tr>
@@ -52,6 +63,7 @@
                         <tr>
                             <td>{{ feed.name }}</td>
                             <td>{{ feed.reliability }}</td>
+                            <td>{{ feed.type_tag or '—' }}</td>
                             <td class="text-truncate" style="max-width: 150px;">{{ feed.url }}</td>
                             <td>
                                 <a href="{{ url_for('settings.delete_feed', id=feed.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete this feed?')">Delete</a>
@@ -73,4 +85,24 @@
     </form>
     
 </div>
+<script>
+    const tagButtons = document.querySelectorAll('#typeTagCloud button');
+    const tagInput = document.getElementById('typeTagInput');
+
+    tagButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const currentlySelected = btn.classList.contains('btn-secondary');
+            tagButtons.forEach(b => b.classList.remove('btn-secondary'));
+            tagButtons.forEach(b => b.classList.add('btn-outline-secondary'));
+
+            if (currentlySelected) {
+                tagInput.value = '';
+            } else {
+                btn.classList.remove('btn-outline-secondary');
+                btn.classList.add('btn-secondary');
+                tagInput.value = btn.getAttribute('data-tag-name');
+            }
+        });
+    });
+</script>
 {% endblock %}

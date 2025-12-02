@@ -1,6 +1,7 @@
 from flask import render_template, redirect, url_for, flash, request
-from flask_login import login_required
-from app.models import db, Feed, SystemConfig
+from flask_login import login_required, current_user
+from app.models import db, Feed, StandardTag, SystemConfig
+from app.services.scheduler import SchedulerService
 from app.routes.settings import bp
 
 @bp.route('/feeds')
@@ -8,7 +9,14 @@ from app.routes.settings import bp
 def feeds():
     feeds = Feed.query.all()
     current_interval = SystemConfig.get('fetch_interval_minutes', 60)
-    return render_template('settings/feeds.html', feeds=feeds, current_interval=current_interval)
+    tags = StandardTag.query.order_by(StandardTag.name).all()
+    return render_template(
+        'settings/feeds.html',
+        feeds=feeds,
+        current_interval=current_interval,
+        tags=tags,
+        is_admin=current_user.role == 'admin'
+    )
     
 
 @bp.route('/feeds/add', methods=['POST'])
@@ -17,6 +25,7 @@ def add_feed():
     name = request.form.get('name')
     url = request.form.get('url')
     reliability = request.form.get('reliability')
+    type_tag = request.form.get('type_tag')
     
     if not name or not url:
         flash('Name and URL are required')
@@ -27,7 +36,13 @@ def add_feed():
         flash('Feed already exists')
         return redirect(url_for('settings.feeds'))
 
-    new_feed = Feed(name=name, url=url, reliability=reliability)
+    if type_tag:
+        exists = StandardTag.query.filter_by(name=type_tag).first()
+        if not exists:
+            flash('Selected type is not valid')
+            return redirect(url_for('settings.feeds'))
+
+    new_feed = Feed(name=name, url=url, reliability=reliability, type_tag=type_tag)
     db.session.add(new_feed)
     db.session.commit()
     flash(f'Feed "{name}" added successfully')

@@ -1,10 +1,10 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_required
-from app.models import db, Article, CustomEntity, SystemConfig
+from app.models import db, Article, CustomEntity, Feed, SystemConfig
 from app.services.manager import FeedManager
 from app.services.storage import StorageService
 from app.services.nlp import NLPService
-from datetime import datetime
+from datetime import datetime, timezone
 import dateutil.parser
 from threading import Thread
 
@@ -71,9 +71,63 @@ def dashboard():
         except:
             last_run_display = "Unknown"
 
-    queue = Article.query.filter_by(status='PENDING').order_by(Article.pub_date.desc()).limit(100).all()
-    
-    return render_template('main/dashboard.html', stats=stats, queue=queue, last_run=last_run_display)
+    queue_query = Article.query.join(Feed).filter(Article.status == 'PENDING')
+
+    selected_source = request.args.get('source', '')
+    selected_reliability = request.args.get('reliability', '')
+    start_raw = request.args.get('start', '')
+    end_raw = request.args.get('end', '')
+
+    if selected_source:
+        try:
+            queue_query = queue_query.filter(Feed.id == int(selected_source))
+        except ValueError:
+            flash('Invalid source filter provided')
+
+    if selected_reliability:
+        queue_query = queue_query.filter(Feed.reliability == selected_reliability)
+
+    def parse_to_utc(value):
+        if not value:
+            return None
+        try:
+            parsed = dateutil.parser.isoparse(value)
+            if parsed.tzinfo:
+                parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+            return parsed
+        except (ValueError, TypeError):
+            flash('Unable to parse provided date or time filter')
+            return None
+
+    start_dt = parse_to_utc(start_raw)
+    end_dt = parse_to_utc(end_raw)
+
+    if start_dt:
+        queue_query = queue_query.filter(Article.pub_date >= start_dt)
+    if end_dt:
+        queue_query = queue_query.filter(Article.pub_date <= end_dt)
+
+    queue = queue_query.order_by(Article.pub_date.desc()).limit(100).all()
+
+    sources = Feed.query.order_by(Feed.name).all()
+    reliabilities = sorted({feed.reliability for feed in sources if feed.reliability})
+
+    filter_values = {
+        'source': selected_source,
+        'reliability': selected_reliability,
+        'start': start_raw,
+        'end': end_raw
+    }
+
+    return render_template(
+        'main/dashboard.html',
+        stats=stats,
+        queue=queue,
+        last_run=last_run_display,
+        sources=sources,
+        reliabilities=reliabilities,
+        filter_values=filter_values
+    )
 
 @bp.route('/fetch-now')
 @login_required
@@ -124,9 +178,10 @@ def approve_article(id):
     
     try:
         file_path = StorageService.save_article_to_disk(
-            article, 
-            article.source.name, 
-            article.source.reliability
+            article,
+            article.source.name,
+            article.source.reliability,
+            article.source.type_tag
         )
         article.status = 'APPROVED'
         db.session.commit()
