@@ -171,8 +171,14 @@ def reload_rules(req: ReloadRequest) -> Dict[str, Any]:
             }
 
         if req.model and req.model != app.state.model_name:
+            previous_ready = getattr(app.state, "ready", False)
             app.state.ready = False
-            new_model = load_spacy_model(req.model)
+            try:
+                new_model = load_spacy_model(req.model)
+            except Exception:
+                app.state.ready = previous_ready
+                raise
+
             app.state.model = new_model
             app.state.model_name = req.model
             app.state.ready = True
