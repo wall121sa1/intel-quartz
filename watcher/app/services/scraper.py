@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from datetime import datetime
 from time import mktime
 
@@ -10,6 +11,7 @@ from newspaper import Article as NewspaperArticle
 class ScraperService:
     FEED_TIMEOUT = 10
     ARTICLE_TIMEOUT = 15
+    PARSE_TIMEOUT = 10
     _session = None
 
     @staticmethod
@@ -36,14 +38,31 @@ class ScraperService:
                 allow_redirects=True,
             )
             response.raise_for_status()
-
-            article = NewspaperArticle(url)
-            article.set_html(response.text)
-            article.parse()
-            return article.text
+            return ScraperService._parse_article_html(url, response.text)
         except Exception as e:
             print(f"Error scraping full text for {url}: {e}")
             return None
+
+    @staticmethod
+    def _parse_article_html(url, html):
+        """Parse article HTML with a timeout to avoid hanging workers."""
+
+        def parse():
+            article = NewspaperArticle(url)
+            article.set_html(html)
+            article.parse()
+            return article.text
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(parse)
+            try:
+                return future.result(timeout=ScraperService.PARSE_TIMEOUT)
+            except FuturesTimeoutError:
+                print(
+                    f"Error scraping full text for {url}: parse exceeded "
+                    f"{ScraperService.PARSE_TIMEOUT}s"
+                )
+                return None
 
     @staticmethod
     def normalize_date(entry):
