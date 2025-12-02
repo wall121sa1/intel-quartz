@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
-from .config import AppConfig
+from .config import AppConfig, load_config
 from .db import get_session
 from .models import Feed, Channel, Message, FeedItem
 
@@ -29,6 +29,14 @@ async def _run_release_cycle(config: AppConfig):
             _release_for_feed(db, feed, config)
     finally:
         db.close()
+
+async def run_release_cycle_once():
+    """
+    Run a single release cycle (for all feeds) on demand.
+    Can be called from the dashboard.
+    """
+    config = load_config()
+    await _run_release_cycle(config)
 
 
 def _release_for_feed(db: Session, feed: Feed, config: AppConfig):
