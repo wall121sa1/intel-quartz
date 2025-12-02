@@ -23,7 +23,7 @@ services:
       - .env
     environment:
       # DB connection (overrides config.yaml)
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://rssuser:rsspass@postgres:3432/telegram_rss}
+      DATABASE_URL: postgresql+psycopg://rssuser:rsspass@postgres:3432/telegram_rss
 
       # Bot 1 (Mess Bot)
       MESS_BOT_API_ID: ${MESS_BOT_API_ID:?Set BOT_API_ID in .env}

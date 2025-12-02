@@ -20,7 +20,7 @@ Telegram RSS Service ingests messages from configured Telegram channels, stores 
 
 ## Quickstart (Docker Compose)
 1. Copy `.env.example` to `.env` and fill in values for every bot listed in `config.yaml`. Each bot expects `NAME_API_ID` and `NAME_API_HASH` where `NAME` is the uppercase bot `name` (e.g., `RU_CRIME_BOT_API_ID`).
-2. (Optional, **only when pointing at an external database**) set `DATABASE_URL` in `.env` to override the database URL in `config.yaml`. When using the bundled Postgres service, leave this unset so the app targets the `postgres` container.
+2. (Optional, **only when pointing at an external database**) set `DATABASE_URL` in `.env` to override the database URL in `config.yaml`. When using the bundled Postgres service, leave this unset; the compose file now hard-codes the internal connection string so the app always targets the `postgres` container (inside Docker the hostname is `postgres` on port `3432`).
 3. Start the stack:
    ```bash
    docker-compose up --build
@@ -31,7 +31,7 @@ Telegram RSS Service ingests messages from configured Telegram channels, stores 
 
 ## Configuration reference
 ### Environment variables (.env)
-- `DATABASE_URL` — overrides `database.url` from `config.yaml` (PostgreSQL connection string). Skip this when running with `docker-compose` unless you intend to reach a remote database.
+- `DATABASE_URL` — overrides `database.url` from `config.yaml` (PostgreSQL connection string). Skip this when running with `docker-compose` unless you intend to reach a remote database; the compose stack now ignores `.env` values for `DATABASE_URL` and always uses the internal `postgres:3432` service.
 - `{BOT_NAME}_API_ID` / `{BOT_NAME}_API_HASH` — required for each bot listed under `bots` in `config.yaml` (e.g., `RU_CRIME_BOT_API_ID`).
 
 ### `config.yaml`
@@ -84,6 +84,7 @@ Telethon stores session files under `/app/sessions` inside the container. The co
 ## Troubleshooting
 - Missing API credentials: ensure each bot in `config.yaml` has matching `*_API_ID` and `*_API_HASH` values in `.env`.
 - Database initialization errors: confirm PostgreSQL is running and `DATABASE_URL` points to a reachable instance.
+- Connection refused to `127.0.0.1:5432` inside Docker: the container now pins `DATABASE_URL` to `postgres:3432`, so re-run `docker-compose up --build` to pick up the change. If you need a remote database, edit `docker-compose.yml` directly instead of setting `DATABASE_URL` to `localhost`.
 - Empty feeds: verify channels are configured for the desired `language` and `topic`, and allow time for the poller and release scheduler to ingest and release messages.
 
 ## Security considerations
