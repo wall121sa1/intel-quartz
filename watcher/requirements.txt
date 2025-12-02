@@ -21,3 +21,12 @@ boto3
 langdetect
 celery
 redis
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+SQLAlchemy==2.0.35
+psycopg[binary]==3.2.3
+telethon==1.36.0
+pydantic==2.9.0
+PyYAML==6.0.2
+python-dotenv==1.0.1
+python-multipart==0.0.9
