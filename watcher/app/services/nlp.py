@@ -46,11 +46,11 @@ def _collect_custom_rules():
     try:
         if current_app:
             entities = CustomEntity.query.all()
-            return [{"label": e.label, "pattern": e.text} for e in entities]
+            return {"tags": [e.text for e in entities]}
     except Exception as exc:
         logger.warning("NLP: DB Rule Load Error (Ignore if DB init): %s", exc)
 
-    return []
+    return {"tags": []}
 
 
 def _get_remote_session():
@@ -183,7 +183,7 @@ class NLPService:
                 timeout=10,
             )
             response.raise_for_status()
-            logger.info("NLP: Remote model reloaded with %s rules", len(rules))
+            logger.info("NLP: Remote model reloaded with %s rules", len(rules.get("tags", [])))
             return
         except Exception as exc:
             message = f"NLP: Remote reload failed; model remains unchanged: {exc}"
