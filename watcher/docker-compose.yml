@@ -142,7 +142,7 @@ services:
     env_file:
       - ../telegram_rss/.env
     environment:
-      DATABASE_URL: ${TELEGRAM_RSS_DATABASE_URL:-postgresql+psycopg://rssuser:rsspass@telegram_rss_db:3432/telegram_rss}
+      DATABASE_URL: postgresql+psycopg://rssuser:rsspass@telegram_rss_db:3432/telegram_rss
       MESS_BOT_API_ID: ${MESS_BOT_API_ID:?Set BOT_API_ID in .env}
       MESS_BOT_API_HASH: ${MESS_BOT_API_HASH:?Set API_HASH in .env}
     volumes:
