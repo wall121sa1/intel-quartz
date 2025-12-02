@@ -12,6 +12,8 @@ def init_db(database_url: str):
     SessionLocal = sessionmaker(bind=_engine, autoflush=False, autocommit=False, future=True)
 
 def get_session():
+    if SessionLocal is None:
+        raise RuntimeError("Database not initialized; call init_db() first")
     return SessionLocal()
 
 def create_all_tables():
