@@ -24,7 +24,7 @@ services:
       ALLOW_BOOTSTRAP_ADMIN: ${ALLOW_BOOTSTRAP_ADMIN:-false}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
-      NER_SERVICE_URL: ${NER_SERVICE_URL:-http://localhost:8000}
+      NER_SERVICE_URL: ${NER_SERVICE_URL:-http://ner:8000}
     ports:
       - "5000:5000"
     volumes:
@@ -33,6 +33,8 @@ services:
     command: ["gunicorn", "-b", "0.0.0.0:5000", "run:app"]
     restart: unless-stopped
     entrypoint: ["/app/entrypoint.sh"]
+    depends_on:
+      - ner
 
     deploy:
       resources:
@@ -73,6 +75,16 @@ services:
       resources:
         limits:
           memory: 12G
+
+  ner:
+    build:
+      context: ../ner_service
+      dockerfile: Dockerfile
+    environment:
+      SERVICE_NAME: ${SERVICE_NAME:-ner-service}
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
 
 volumes:
   watcher-vault:
