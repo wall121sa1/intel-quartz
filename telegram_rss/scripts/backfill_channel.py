@@ -29,7 +29,7 @@ msg_row = MessageModel(
     text=text,
     url=url,
     raw_json=raw,
-
+)
 
 def get_bot_env_credentials(bot_name: str):
     """
