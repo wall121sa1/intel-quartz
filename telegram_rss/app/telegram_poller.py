@@ -26,7 +26,11 @@ async def start_telegram_pollers(config: AppConfig):
     finally:
         db.close()
 
-    # One task per bot
+    if not bots:
+        print("[telegram_poller] No bots configured; poller will not start.")
+        return
+
+    # One supervised task per bot
     tasks = []
     for bot in bots:
         # Find matching config for this bot
@@ -34,9 +38,26 @@ async def start_telegram_pollers(config: AppConfig):
         if not cfg:
             continue
 
-        tasks.append(_run_bot_poller(cfg, bot, config))
+        tasks.append(asyncio.create_task(_run_bot_poller_safe(cfg, bot, config)))
 
     await asyncio.gather(*tasks)
+
+
+async def _run_bot_poller_safe(bot_cfg, bot_model: BotModel, config: AppConfig):
+    """Run a bot poller with self-recovery on errors."""
+
+    while True:
+        try:
+            await _run_bot_poller(bot_cfg, bot_model, config)
+        except asyncio.CancelledError:
+            # Allow graceful shutdown
+            raise
+        except Exception as e:
+            print(
+                f"[telegram_poller] Poller for {bot_cfg.name} crashed: {e}. "
+                f"Restarting after backoff..."
+            )
+            await asyncio.sleep(5)
 
 
 def _sync_bots_from_config(db: Session, config: AppConfig) -> List[BotModel]:

@@ -8,6 +8,8 @@ from .config import AppConfig
 from .db import get_session
 from .models import Feed, FeedItem
 
+MAX_RSS_ENTRIES = 100
+
 router = APIRouter()
 
 
@@ -25,9 +27,10 @@ def get_rss(
 ):
     feed = db.query(Feed).filter_by(language=language, topic=topic).first()
     if not feed:
+        print(f"[rss_api] Requested feed {language}/{topic} not found.")
         return Response(status_code=404, content="Feed not found")
 
-    max_items = feed.max_items or config.staging.default_max_items
+    max_items = min(feed.max_items or config.staging.default_max_items, MAX_RSS_ENTRIES)
 
     items = (
         db.query(FeedItem)
@@ -36,6 +39,11 @@ def get_rss(
         .order_by(FeedItem.published_at.desc())
         .limit(max_items)
         .all()
+    )
+
+    print(
+        f"[rss_api] Serving RSS feed {language}/{topic} with {len(items)} "
+        f"item(s); cap set to {max_items}."
     )
 
     now = datetime.now(timezone.utc)

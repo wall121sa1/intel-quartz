@@ -6,6 +6,8 @@ from .config import AppConfig, load_config
 from .db import get_session
 from .models import Feed, Channel, Message, FeedItem
 
+MAX_FEED_ENTRIES = 100
+
 
 async def start_release_scheduler(config: AppConfig):
     """Background task: periodically promote new messages to feed_items."""
@@ -60,7 +62,10 @@ def _release_for_feed(db: Session, feed: Feed, config: AppConfig):
         .all()
     )
     if not channels:
-        # Nothing for this feed
+        print(
+            f"[release_scheduler] Feed {feed.language}/{feed.topic}: "
+            "no enabled channels to release from."
+        )
         feed.last_release_at = now
         db.commit()
         return
@@ -82,6 +87,10 @@ def _release_for_feed(db: Session, feed: Feed, config: AppConfig):
     )
 
     if not new_messages:
+        print(
+            f"[release_scheduler] Feed {feed.language}/{feed.topic}: "
+            "no new messages to release."
+        )
         feed.last_release_at = now
         db.commit()
         return
@@ -112,6 +121,8 @@ def _release_for_feed(db: Session, feed: Feed, config: AppConfig):
         f"released {len(new_messages)} messages."
     )
 
+    _prune_feed_items(db, feed)
+
 
 def _ensure_feeds_exist(db: Session, config: AppConfig) -> None:
     """Create feeds for any language/topic pairs referenced by channels."""
@@ -120,10 +131,20 @@ def _ensure_feeds_exist(db: Session, config: AppConfig) -> None:
     existing = {(f.language, f.topic) for f in db.query(Feed).all()}
 
     created = False
+    created_keys = []
+    updated_limits = False
     for channel in channels:
         for topic in channel.topics:
             key = (channel.language, topic)
             if key in existing:
+                feed = (
+                    db.query(Feed)
+                    .filter(Feed.language == channel.language, Feed.topic == topic)
+                    .first()
+                )
+                if feed and (feed.max_items is None or feed.max_items > MAX_FEED_ENTRIES):
+                    feed.max_items = MAX_FEED_ENTRIES
+                    updated_limits = True
                 continue
 
             slug = f"{channel.language}-{topic}"
@@ -131,11 +152,48 @@ def _ensure_feeds_exist(db: Session, config: AppConfig) -> None:
                 language=channel.language,
                 topic=topic,
                 slug=slug,
-                max_items=config.staging.max_items_per_feed,
+                max_items=min(config.staging.max_items_per_feed, MAX_FEED_ENTRIES),
             )
             db.add(feed)
             existing.add(key)
             created = True
+            created_keys.append(key)
+
+    if created or updated_limits:
+        db.commit()
 
     if created:
-        db.commit()
+        print(
+            "[release_scheduler] Created feeds for: "
+            + ", ".join(f"{lang}/{topic}" for lang, topic in created_keys)
+        )
+
+    if updated_limits:
+        print(
+            f"[release_scheduler] Normalized feed max_items to {MAX_FEED_ENTRIES} entries."
+        )
+
+
+def _prune_feed_items(db: Session, feed: Feed) -> None:
+    """Ensure each feed keeps only the most recent MAX_FEED_ENTRIES items."""
+
+    excess_items = (
+        db.query(FeedItem)
+        .filter(FeedItem.feed_id == feed.id)
+        .order_by(FeedItem.published_at.desc())
+        .offset(MAX_FEED_ENTRIES)
+        .all()
+    )
+
+    if not excess_items:
+        return
+
+    pruned_count = len(excess_items)
+    for item in excess_items:
+        db.delete(item)
+
+    db.commit()
+    print(
+        f"[release_scheduler] Feed {feed.language}/{feed.topic}: "
+        f"pruned {pruned_count} old items to maintain {MAX_FEED_ENTRIES} limit."
+    )
