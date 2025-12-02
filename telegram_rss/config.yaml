@@ -1,6 +1,6 @@
 database:
   # DATABASE_URL env var will override this in Docker
-  url: postgresql+psycopg://rssuser:rsspass@postgres:5432/telegram_rss
+  url: postgresql+psycopg://rssuser:rsspass@postgres:3432/telegram_rss
 
 polling:
   interval_seconds: 20
@@ -14,11 +14,6 @@ staging:
 
 bots:
   # Bot 1
-  - name: "ru_crime_bot"
-    theme: "ru_crime"
-    session_name: "ru_crime_session"
-
-  # Bot 2
-  - name: "fa_markets_bot"
-    theme: "fa_markets"
-    session_name: "fa_markets_session"
+  - name: "MESS_BOT"
+    theme: "None"
+    session_name: "None"

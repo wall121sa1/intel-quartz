@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app ./app
+COPY . .
 COPY config.yaml ./config.yaml
 
 EXPOSE 8000
