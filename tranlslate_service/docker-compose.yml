@@ -21,6 +21,7 @@ services:
     environment:
       - LT_UPDATE_MODELS=true
       - LT_LOAD_ONLY=en,fr,ru,fa,ar,es,zh
+      - LT_PORT=4000
     volumes:
       - libretranslate_api_keys:/app/db
       # Keep models cached to avoid re-downloading on startup
