@@ -7,6 +7,7 @@ Telegram RSS Service ingests messages from configured Telegram channels, stores 
 - Releases new messages into topic/language-specific feeds on a schedule.
 - Serves RSS feeds (`/rss/{language}/{topic}`) suitable for readers or downstream processing.
 - Provides a basic dashboard to view bots, list channels, and add new channels.
+- Displays available RSS feed URLs directly on the dashboard for quick access.
 - `app/models.py` — SQLAlchemy models for bots, channels, messages, feeds, and feed items.
 - `config.yaml` — default configuration for polling, staging, database, and bot identities.
 - `.env` (user-supplied) — secrets such as API IDs and hashes for each bot.
