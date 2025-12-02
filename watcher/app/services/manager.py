@@ -65,7 +65,9 @@ class FeedManager:
     @staticmethod
     def sync_all_feeds():
         """Synchronize all feeds sequentially to avoid concurrent fetches."""
-        feeds = Feed.query.all()
+        feeds = db.session.query(
+            Feed.id, Feed.vault_id, Feed.name, Feed.url
+        ).all()
         stats = {'added': 0, 'errors': 0, 'skipped': 0}
 
         for feed in feeds:

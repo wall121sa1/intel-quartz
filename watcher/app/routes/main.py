@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_required
 from app.models import db, Article, CustomEntity, SystemConfig
 from app.services.manager import FeedManager
@@ -6,6 +6,7 @@ from app.services.storage import StorageService
 from app.services.nlp import NLPService
 from datetime import datetime
 import dateutil.parser
+from threading import Thread
 
 bp = Blueprint('main', __name__)
 
@@ -77,11 +78,20 @@ def dashboard():
 @bp.route('/fetch-now')
 @login_required
 def fetch_now():
-    try:
-        stats = FeedManager.sync_all_feeds()
-        flash(f"Sync Complete: {stats['added']} added, {stats['skipped']} skipped.")
-    except Exception as e:
-        flash(f"Error during sync: {str(e)}")
+    def _run_sync(app):
+        with app.app_context():
+            try:
+                stats = FeedManager.sync_all_feeds()
+                app.logger.info(
+                    "Background sync complete",
+                    extra={"added": stats['added'], "skipped": stats['skipped'], "errors": stats['errors']},
+                )
+            except Exception:
+                app.logger.exception("Background sync failed")
+
+    app = current_app._get_current_object()
+    Thread(target=_run_sync, args=(app,), daemon=True).start()
+    flash("Sync started in the background. Refresh the dashboard in a bit for results.")
     return redirect(url_for('main.dashboard'))
 
 @bp.route('/review/<int:id>')
