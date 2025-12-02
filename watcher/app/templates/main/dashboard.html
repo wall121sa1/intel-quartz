@@ -43,6 +43,44 @@
     </div>
 </div>
 
+<!-- Filters -->
+<form method="get" class="card mb-3">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Source</label>
+                <select class="form-select" name="source">
+                    <option value="">All sources</option>
+                    {% for source in sources %}
+                        <option value="{{ source.id }}" {% if filter_values.source == source.id|string %}selected{% endif %}>{{ source.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Reliability</label>
+                <select class="form-select" name="reliability">
+                    <option value="">All levels</option>
+                    {% for reliability in reliabilities %}
+                        <option value="{{ reliability }}" {% if filter_values.reliability == reliability %}selected{% endif %}>{{ reliability }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Published After (UTC)</label>
+                <input type="datetime-local" name="start" class="form-control" value="{{ filter_values.start }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Published Before (UTC)</label>
+                <input type="datetime-local" name="end" class="form-control" value="{{ filter_values.end }}">
+            </div>
+        </div>
+        <div class="text-end mt-3">
+            <button type="submit" class="btn btn-primary me-2">Apply Filters</button>
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary">Clear</a>
+        </div>
+    </div>
+</form>
+
 <!-- The Queue Table -->
 <form action="{{ url_for('main.dismiss_bulk') }}" method="post" id="bulkForm">
     <div class="card">
@@ -61,8 +99,9 @@
                     <tr>
                         <th style="width: 40px;"></th>
                         <th>Source</th>
+                        <th>Reliability</th>
                         <th>Title</th>
-                        <th>Date</th>
+                        <th>Date (UTC)</th>
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>
@@ -74,11 +113,14 @@
                         </td>
                         <td class="align-middle"><span class="badge bg-info text-dark">{{ article.source.name }}</span></td>
                         <td class="align-middle">
+                            <span class="badge bg-light text-dark border">{{ article.source.reliability or 'N/A' }}</span>
+                        </td>
+                        <td class="align-middle">
                             <a href="{{ url_for('main.review', id=article.id) }}" class="text-decoration-none fw-bold text-dark">
                                 {{ article.title }}
                             </a>
                         </td>
-                        <td class="align-middle">{{ article.pub_date.strftime('%Y-%m-%d') }}</td>
+                        <td class="align-middle">{{ article.pub_date.strftime('%Y-%m-%d %H:%M UTC') if article.pub_date else 'N/A' }}</td>
                         <td class="align-middle text-end">
                             <a href="{{ url_for('main.review', id=article.id) }}" class="btn btn-sm btn-primary">Review</a>
                             <a href="{{ url_for('main.dismiss_article', id=article.id) }}" class="btn btn-sm btn-outline-secondary ms-1" title="Dismiss">
