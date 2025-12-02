@@ -1,22 +1,31 @@
-version: "3.9"
-
 services:
   libretranslate:
-    image: libretranslate/libretranslate:latest
     container_name: libretranslate
+    image: libretranslate/libretranslate:latest
     ports:
       - "4000:4000"
-    environment:
-      # Limit to the languages you care about
-      # ar = Arabic, fa = Farsi, ru = Russian, uk = Ukrainian,
-      # es = Spanish, fr = French, en = English
-      - LT_LOAD_ONLY=ar,fa,ru,uk,es,fr,en
-    volumes:
-      # Persist downloaded models & cache so they aren't re-downloaded every time
-      - libretranslate_data:/home/libretranslate/.local/share
-      - libretranslate_cache:/home/libretranslate/.local/cache
     restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', './venv/bin/python scripts/healthcheck.py']
+      interval: 10s
+      timeout: 4s
+      retries: 4
+      start_period: 5s
+    tty: true
+    # Add/override args if needed, e.g. --ssl
+    # command: --ssl --ga-id MY-GA-ID --req-limit 100 --char-limit 500
+    # Enable this block to persist API keys to a volume
+     environment:
+       - LT_API_KEYS=true
+       - LT_API_KEYS_DB_PATH=/app/db/api_keys.db
+    environment:
+      - LT_UPDATE_MODELS=true
+      - LT_LOAD_ONLY=en,fr,ru,fa,ar,es,zh
+    volumes:
+      - libretranslate_api_keys:/app/db
+      # Keep models cached to avoid re-downloading on startup
+      - libretranslate_models:/home/libretranslate/.local:rw
 
 volumes:
-  libretranslate_data:
-  libretranslate_cache:
+  libretranslate_api_keys:
+  libretranslate_models:
