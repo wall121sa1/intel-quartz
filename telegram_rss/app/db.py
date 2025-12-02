@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 Base = declarative_base()
@@ -19,3 +19,22 @@ def get_session():
 def create_all_tables():
     from . import models  # ensure models are imported
     Base.metadata.create_all(bind=_engine)
+    _apply_schema_patches()
+
+
+def _apply_schema_patches():
+    """
+    Apply lightweight, idempotent schema fixes for deployments without
+    migrations. These statements should be safe to run on every startup.
+    """
+
+    with _engine.connect() as conn:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE IF EXISTS channels
+                ADD COLUMN IF NOT EXISTS telegram_numeric_id BIGINT
+                """
+            )
+        )
+        conn.commit()

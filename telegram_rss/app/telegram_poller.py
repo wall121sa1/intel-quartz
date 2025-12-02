@@ -246,7 +246,7 @@ async def _poll_single_channel(
                 sent_at=sent_at,
                 text=text,
                 url=url,
-                raw_json=m.to_dict() if hasattr(m, "to_dict") else None,
+                raw_json=telethon_to_safe_json(m) if hasattr(m, "to_dict") else None,
             )
             db.add(msg_row)
 
@@ -262,15 +262,3 @@ async def _poll_single_channel(
     except Exception as e:
         print(f"[telegram_poller] Error polling {channel.telegram_id}: {e}")
         db.rollback()
-
-
-raw = telethon_to_safe_json(m)
-
-msg_row = Message(
-    channel_id=channel.id,
-    telegram_msg_id=m.id,
-    sent_at=sent_at,
-    text=text,
-    url=url,
-    raw_json=raw,
-)
