@@ -4,7 +4,6 @@ import socket
 from datetime import datetime, timedelta
 
 import requests
-import spacy
 from flask import current_app
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -14,15 +13,12 @@ from app.models import CustomEntity
 # Initialize logger
 logger = logging.getLogger(__name__)
 
-# Global variable
-_nlp_pipeline = None
-
-
 def _load_remote_config():
     """Read remote NER configuration from the environment."""
 
     return {
-        "url": os.getenv("NER_SERVICE_URL", "http://ner:8000"),
+        # A configured URL is mandatory; empty values will disable processing.
+        "url": os.getenv("NER_SERVICE_URL", "").strip(),
         "timeout": float(os.getenv("NER_SERVICE_TIMEOUT", "15")),
         "failure_threshold": int(os.getenv("NER_SERVICE_FAILURE_THRESHOLD", "3")),
         "backoff_seconds": int(os.getenv("NER_SERVICE_BACKOFF_SECONDS", "300")),
@@ -57,18 +53,6 @@ def _collect_custom_rules():
     return []
 
 
-def load_custom_rules(nlp):
-    """Helper to load rules from DB into the provided nlp object"""
-    patterns = _collect_custom_rules()
-    if not patterns:
-        return
-
-    ruler = nlp.get_pipe("entity_ruler")
-    ruler.clear_patterns()  # Clear old to avoid duplicates on reload
-    ruler.add_patterns(patterns)
-    logger.info("NLP: Loaded %s custom rules.", len(patterns))
-
-
 def _get_remote_session():
     """Return a pooled HTTP session with retries for the NER service."""
     global _remote_session
@@ -101,7 +85,9 @@ def _get_remote_session():
 
 
 def _remote_available():
-    return not _remote_disable_until or datetime.utcnow() >= _remote_disable_until
+    return bool(_remote_nlp_url) and (
+        not _remote_disable_until or datetime.utcnow() >= _remote_disable_until
+    )
 
 
 def _record_remote_failure(exc: Exception):
@@ -119,38 +105,6 @@ def _record_remote_failure(exc: Exception):
         )
 
 
-def get_nlp_pipeline():
-    global _nlp_pipeline
-
-    if _nlp_pipeline is not None:
-        return _nlp_pipeline
-
-    logger.info("NLP: Loading Spacy Model...")
-    try:
-        # Disable components we don't need to save RAM (e.g., parser if we only need entities)
-        # keeping 'ner' is essential. 'parser' is heavy, disable if not doing dependency parsing.
-        _nlp_pipeline = spacy.load(
-            "en_core_web_sm", disable=['parser', 'tagger', 'attribute_ruler', 'lemmatizer']
-        )
-
-        # Add EntityRuler
-        if "entity_ruler" not in _nlp_pipeline.pipe_names:
-            _nlp_pipeline.add_pipe("entity_ruler", before="ner", config={"overwrite_ents": True})
-
-        # Load rules
-        load_custom_rules(_nlp_pipeline)
-
-    except OSError:
-        logger.critical("NLP: Model not found. downloading...")
-        from spacy.cli import download
-        download("en_core_web_sm")
-        _nlp_pipeline = spacy.load(
-            "en_core_web_sm", disable=['parser', 'tagger', 'attribute_ruler', 'lemmatizer']
-        )
-
-    return _nlp_pipeline
-
-
 class NLPService:
     @staticmethod
     def process_text(text):
@@ -164,6 +118,12 @@ class NLPService:
         }
 
         if not text:
+            return empty_result
+
+        if not _remote_nlp_url:
+            message = "NLP: Remote NER service URL is not configured; skipping processing."
+            logger.error(message)
+            print(message)
             return empty_result
 
         # Always prefer the remote NER endpoint (default) so models stay centralized.
@@ -191,70 +151,29 @@ class NLPService:
                 if "content_with_links" in data and "entities" in data:
                     return data
 
-                logger.warning("NLP: Remote response missing expected keys, falling back to local pipeline")
+                message = "NLP: Remote response missing expected keys; returning unprocessed content"
+                logger.error(message)
+                print(message)
             except Exception as exc:
                 _record_remote_failure(exc)
-                logger.warning("NLP: Remote service unavailable, falling back to local pipeline: %s", exc)
+                message = f"NLP: Remote service unavailable; returning unprocessed content: {exc}"
+                logger.error(message)
+                print(message)
         elif _remote_disable_until:
             logger.debug(
                 "NLP: Skipping remote NER until %s after repeated failures.", _remote_disable_until.isoformat()
             )
 
-        return NLPService._process_text_local(text, empty_result)
-
-    @staticmethod
-    def _process_text_local(text, empty_result):
-        nlp = get_nlp_pipeline()
-
-        if not nlp:
-            return empty_result
-
-        # Increase max length for large articles (default is 1,000,000)
-        nlp.max_length = 2000000
-
-        doc = nlp(text)
-
-        # 1. Extract unique entities using set comprehensions
-        orgs = {ent.text for ent in doc.ents if ent.label_ == "ORG"}
-        people = {ent.text for ent in doc.ents if ent.label_ == "PERSON"}
-        locs = {ent.text for ent in doc.ents if ent.label_ in ["GPE", "LOC"]}
-        events = {ent.text for ent in doc.ents if ent.label_ in ["EVENT", "DATE"] if ent.label_ == "EVENT"}  # Strict event check
-        tags = {ent.text for ent in doc.ents if ent.label_ in ["TAG", "TOPIC"]}
-
-        # 2. Inject WikiLinks (Reverse order replacement)
-        entities_reversed = sorted(doc.ents, key=lambda e: e.start_char, reverse=True)
-        new_content = text
-
-        # Optimization: Use a set for faster lookup
-        linkable_labels = {"ORG", "PERSON", "GPE", "LOC", "EVENT", "TAG", "TOPIC"}
-
-        for ent in entities_reversed:
-            if ent.label_ in linkable_labels:
-                start, end = ent.start_char, ent.end_char
-                # Check for existing brackets [[...]]
-                if start >= 2 and new_content[start-2:start] == "[[":
-                    continue
-
-                # Check for markdown links [...] or (...)
-                # Simple heuristic: don't break existing markdown links
-                if start > 0 and new_content[start-1] == "[":
-                    continue
-
-                new_content = f"{new_content[:start]}[[{new_content[start:end]}]]{new_content[end:]}"
-
-        return {
-            "entities": {
-                "orgs": list(orgs), "people": list(people), "locs": list(locs),
-                "events": list(events), "tags": list(tags)
-            },
-            "content_with_links": new_content
-        }
+        return empty_result
 
     @staticmethod
     def reload_model():
         """Force refresh of the NLP model and sync any remote service."""
-        global _nlp_pipeline
-        _nlp_pipeline = None
+        if not _remote_nlp_url:
+            message = "NLP: Remote NER service URL is not configured; cannot reload model."
+            logger.error(message)
+            print(message)
+            return
 
         try:
             rules = _collect_custom_rules()
@@ -267,7 +186,6 @@ class NLPService:
             logger.info("NLP: Remote model reloaded with %s rules", len(rules))
             return
         except Exception as exc:
-            logger.warning("NLP: Remote reload failed, refreshing local pipeline instead: %s", exc)
-
-        # Fallback to refreshing the in-process pipeline to keep UI dictionary tests working.
-        get_nlp_pipeline()
+            message = f"NLP: Remote reload failed; model remains unchanged: {exc}"
+            logger.error(message)
+            print(message)
