@@ -348,11 +348,15 @@ def list_channels(db: Session = Depends(get_session)):
             if ch.enabled
             else '<span class="pill pill-red">disabled</span>'
         )
+        display_name = ch.display_name or "–"
+        numeric_id = ch.telegram_numeric_id or "–"
 
         rows.append(f"""
         <tr>
           <td>{ch.id}</td>
+          <td>{display_name}</td>
           <td>{ch.telegram_id}</td>
+          <td>{numeric_id}</td>
           <td>{ch.bot.name if ch.bot else '–'}</td>
           <td>{ch.language}</td>
           <td>{topics_str}</td>
@@ -375,7 +379,9 @@ def list_channels(db: Session = Depends(get_session)):
         <thead>
           <tr>
             <th>ID</th>
-            <th>Telegram ID</th>
+            <th>Name</th>
+            <th>Telegram @</th>
+            <th>Telegram #ID</th>
             <th>Bot</th>
             <th>Language</th>
             <th>Topics</th>
@@ -385,7 +391,7 @@ def list_channels(db: Session = Depends(get_session)):
           </tr>
         </thead>
         <tbody>
-          {''.join(rows) if rows else '<tr><td colspan="8">No channels yet. Sync dialogs from a bot or add one manually.</td></tr>'}
+          {''.join(rows) if rows else '<tr><td colspan="10">No channels yet. Sync dialogs from a bot or add one manually.</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -406,6 +412,12 @@ def new_channel_form(db: Session = Depends(get_session)):
         <form method="post" action="/dashboard/channels">
           <div class="field-label">Telegram ID (e.g. @mychannel or numeric dialog ID)</div>
           <input class="field-input" name="telegram_id" placeholder="@mychannel">
+
+          <div class="field-label">Telegram numeric ID (optional)</div>
+          <input class="field-input" name="telegram_numeric_id" placeholder="123456789" type="number">
+
+          <div class="field-label">Display name (optional)</div>
+          <input class="field-input" name="display_name" placeholder="Channel or group name">
 
           <div class="field-label">Language (e.g. en, ru, fa)</div>
           <input class="field-input" name="language" value="unknown">
@@ -446,6 +458,8 @@ def new_channel_form(db: Session = Depends(get_session)):
 @router.post("/dashboard/channels")
 def create_channel(
     telegram_id: str = Form(...),
+    telegram_numeric_id: str = Form(None),
+    display_name: str = Form(""),
     language: str = Form(...),
     topics: str = Form(...),
     sensitivity: str = Form("public"),
@@ -453,8 +467,11 @@ def create_channel(
     db: Session = Depends(get_session),
 ):
     topics_list = [t.strip() for t in topics.split(",") if t.strip()]
+    numeric_id = int(telegram_numeric_id) if telegram_numeric_id else None
     channel = Channel(
         telegram_id=telegram_id,
+        telegram_numeric_id=numeric_id,
+        display_name=display_name or telegram_id,
         language=language,
         topics=topics_list,
         bot_id=bot_id,
@@ -479,6 +496,7 @@ def edit_channel_form(channel_id: int, db: Session = Depends(get_session)):
     ])
 
     topics_str = ", ".join(ch.topics) if ch.topics else ""
+    numeric_id_value = ch.telegram_numeric_id if ch.telegram_numeric_id is not None else ""
 
     form_html = f"""
     <div class="card">
@@ -486,6 +504,12 @@ def edit_channel_form(channel_id: int, db: Session = Depends(get_session)):
       <form method="post" action="/dashboard/channels/{ch.id}/edit">
         <div class="field-label">Telegram ID</div>
         <input class="field-input" name="telegram_id" value="{ch.telegram_id}" readonly>
+
+        <div class="field-label">Telegram numeric ID</div>
+        <input class="field-input" name="telegram_numeric_id" value="{numeric_id_value}" type="number">
+
+        <div class="field-label">Display name</div>
+        <input class="field-input" name="display_name" value="{ch.display_name or ''}">
 
         <div class="field-label">Language</div>
         <input class="field-input" name="language" value="{ch.language}">
@@ -533,6 +557,8 @@ async def manual_release():
 @router.post("/dashboard/channels/{channel_id}/edit")
 def update_channel(
     channel_id: int,
+    telegram_numeric_id: str = Form(None),
+    display_name: str = Form(""),
     language: str = Form(...),
     topics: str = Form(...),
     sensitivity: str = Form("public"),
@@ -545,12 +571,15 @@ def update_channel(
         return RedirectResponse(url="/dashboard/channels", status_code=303)
 
     topics_list = [t.strip() for t in topics.split(",") if t.strip()]
+    numeric_id = int(telegram_numeric_id) if telegram_numeric_id else None
 
     ch.language = language
     ch.topics = topics_list
     ch.sensitivity = sensitivity
     ch.enabled = (enabled.lower() == "true")
     ch.bot_id = bot_id
+    ch.telegram_numeric_id = numeric_id
+    ch.display_name = display_name or ch.telegram_id
 
     db.commit()
     return RedirectResponse(url="/dashboard/channels", status_code=303)
