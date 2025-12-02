@@ -51,7 +51,7 @@ def list_channels(db: Session = Depends(get_session)):
     channels = db.query(Channel).all()
     html_parts = ["<h1>Channels</h1><table border='1'>"]
     html_parts.append("<tr><th>telegram_id</th><th>language</th><th>topics</th><th>sensitivity</th><th>bot</th></tr>")
-    )
+    
     for ch in channels:
         safe_telegram_id = html.escape(ch.telegram_id)
         safe_language = html.escape(ch.language)
