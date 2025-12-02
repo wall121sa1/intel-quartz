@@ -15,9 +15,9 @@ services:
     # Add/override args if needed, e.g. --ssl
     # command: --ssl --ga-id MY-GA-ID --req-limit 100 --char-limit 500
     # Enable this block to persist API keys to a volume
-     environment:
-       - LT_API_KEYS=true
-       - LT_API_KEYS_DB_PATH=/app/db/api_keys.db
+    # environment:
+    #   - LT_API_KEYS=true
+    #   - LT_API_KEYS_DB_PATH=/app/db/api_keys.db
     environment:
       - LT_UPDATE_MODELS=true
       - LT_LOAD_ONLY=en,fr,ru,fa,ar,es,zh
