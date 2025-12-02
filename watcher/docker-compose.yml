@@ -108,18 +108,6 @@ services:
       - "8000:8000"
     restart: unless-stopped
 
-  watcher_db:
-    image: postgres:16
-    environment:
-      POSTGRES_USER: watcher
-      POSTGRES_PASSWORD: watcherpass
-      POSTGRES_DB: watcher
-    volumes:
-      - watcher-db:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    restart: unless-stopped
-
   telegram_rss_db:
     image: postgres:16
     command: ["postgres", "-p", "3432"]
@@ -142,7 +130,7 @@ services:
     env_file:
       - ../telegram_rss/.env
     environment:
-      DATABASE_URL: ${TELEGRAM_RSS_DATABASE_URL:-postgresql+psycopg://rssuser:rsspass@telegram_rss_db:3432/telegram_rss}
+      DATABASE_URL: postgresql+psycopg://rssuser:rsspass@telegram_rss_db:3432/telegram_rss
       MESS_BOT_API_ID: ${MESS_BOT_API_ID:?Set BOT_API_ID in .env}
       MESS_BOT_API_HASH: ${MESS_BOT_API_HASH:?Set API_HASH in .env}
     volumes:
