@@ -5,7 +5,7 @@ services:
     image: libretranslate/libretranslate:latest
     container_name: libretranslate
     ports:
-      - "5000:5000"
+      - "4000:4000"
     environment:
       # Limit to the languages you care about
       # ar = Arabic, fa = Farsi, ru = Russian, uk = Ukrainian,
