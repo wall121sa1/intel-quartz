@@ -1,6 +1,6 @@
 database:
   # DATABASE_URL env var will override this in Docker
-  url: postgresql+psycopg://rssuser:rsspass@postgres:5432/telegram_rss
+  url: postgresql+psycopg://rssuser:rsspass@postgres:3432/telegram_rss
 
 polling:
   interval_seconds: 20

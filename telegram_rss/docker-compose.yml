@@ -7,6 +7,7 @@ services:
       POSTGRES_USER: rssuser
       POSTGRES_PASSWORD: rsspass
       POSTGRES_DB: telegram_rss
+      ports: 3432:3432
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
@@ -19,7 +20,7 @@ services:
       - .env
     environment:
       # DB connection (overrides config.yaml)
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://rssuser:rsspass@postgres:5432/telegram_rss}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://rssuser:rsspass@postgres:3432/telegram_rss}
 
       # Bot 1 (Mess Bot)
       MESS_BOT_API_ID: ${MESS_BOT_API_ID:?Set BOT_API_ID in .env}
