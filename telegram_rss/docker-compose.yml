@@ -28,10 +28,10 @@ services:
       FA_MARKETS_BOT_API_HASH: "your_fa_hash" # <-- replace with your real API hash
     volumes:
       - ./config.yaml:/app/config.yaml:ro
-      # Persist Telethon session files across restarts
-      - ./sessions:/app
+      # Persist Telethon session files across restarts without shadowing the app code
+      - ./sessions:/app/sessions
     ports:
-      # container_port:host_port
+      # host_port:container_port
       # App listens on 8000 in container, exposed as 2000 on your machine
       - "2000:8000"
     restart: unless-stopped
