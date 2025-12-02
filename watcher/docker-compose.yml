@@ -2,12 +2,6 @@ version: "3.9"
 services:
   watcher_db:
     image: postgres:16
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-watcher}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
     environment:
       POSTGRES_USER: watcher
       POSTGRES_PASSWORD: watcherpass
@@ -29,9 +23,7 @@ services:
       ENABLE_SCHEDULER: "false"
       SECRET_KEY: ${SECRET_KEY:-change-me}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change-me-too}
-      # Use a watcher-specific variable to avoid conflicts with other DATABASE_URL entries
-      # (e.g., the telegram_rss service). Fallback keeps the internal Postgres service.
-      DATABASE_URL: ${WATCHER_DATABASE_URL:-postgresql+psycopg://watcher:watcherpass@watcher_db:5432/watcher}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://watcher:watcherpass@watcher_db:5432/watcher}
       STORAGE_TYPE: ${STORAGE_TYPE:-local}
       VAULT_ROOT: ${VAULT_ROOT:-/app/vault_data}
       S3_BUCKET: ${S3_BUCKET:-}
@@ -55,8 +47,7 @@ services:
     restart: unless-stopped
     entrypoint: ["/app/entrypoint.sh"]
     depends_on:
-      watcher_db:
-        condition: service_healthy
+      - watcher_db
       - ner
       - libretranslate
       - telegram_rss
@@ -77,9 +68,7 @@ services:
       ENABLE_SCHEDULER: "true"
       SECRET_KEY: ${SECRET_KEY:-change-me}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change-me-too}
-      # Use a watcher-specific variable to avoid conflicts with other DATABASE_URL entries
-      # (e.g., the telegram_rss service). Fallback keeps the internal Postgres service.
-      DATABASE_URL: ${WATCHER_DATABASE_URL:-postgresql+psycopg://watcher:watcherpass@watcher_db:5432/watcher}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://watcher:watcherpass@watcher_db:5432/watcher}
       STORAGE_TYPE: ${STORAGE_TYPE:-local}
       VAULT_ROOT: ${VAULT_ROOT:-/app/vault_data}
       S3_BUCKET: ${S3_BUCKET:-}
@@ -100,8 +89,7 @@ services:
     restart: unless-stopped
     entrypoint: ["/app/entrypoint.sh"]
     depends_on:
-      watcher_db:
-        condition: service_healthy
+      - watcher_db
       - libretranslate
       - telegram_rss
     deploy:
@@ -154,7 +142,7 @@ services:
     env_file:
       - ../telegram_rss/.env
     environment:
-      DATABASE_URL: ${TELEGRAM_RSS_DATABASE_URL:-postgresql+psycopg://rssuser:rsspass@telegram_rss_db:3432/telegram_rss}
+      DATABASE_URL: postgresql+psycopg://rssuser:rsspass@telegram_rss_db:3432/telegram_rss
       MESS_BOT_API_ID: ${MESS_BOT_API_ID:?Set BOT_API_ID in .env}
       MESS_BOT_API_HASH: ${MESS_BOT_API_HASH:?Set API_HASH in .env}
     volumes:
