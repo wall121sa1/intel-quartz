@@ -20,7 +20,7 @@ Both services share the same data and vault volumes; adjust the `deploy.resource
 
 ### Translation Service (LibreTranslate)
 
-The watcher now calls a dedicated LibreTranslate instance for language translation instead of loading translation models inside the Flask process. Run LibreTranslate alongside the watcher services (for example, `docker run -p 4000:5000 libretranslate/libretranslate`) and expose it at `http://localhost:4000`. Because the service is isolated in the compose network, no API key is required. If you need a different endpoint, set `LIBRETRANSLATE_URL` in the watcher environment.
+The watcher now calls a dedicated LibreTranslate instance for language translation instead of loading translation models inside the Flask process. A LibreTranslate container is bundled in `watcher/docker-compose.yml` and wired to the other services via `LIBRETRANSLATE_URL=http://libretranslate:4000`. When using Docker Compose, bring it up with the rest of the stack so translation requests stay inside the compose network. For standalone setups, you can still run LibreTranslate separately (for example, `docker run -p 4000:5000 libretranslate/libretranslate`) and expose it at `http://localhost:4000`; override `LIBRETRANSLATE_URL` if you choose a different endpoint. Because the service is isolated in the compose network, no API key is required.
 
 🚀 Key Features
 

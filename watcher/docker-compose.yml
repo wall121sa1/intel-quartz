@@ -25,6 +25,7 @@ services:
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
       NER_SERVICE_URL: ${NER_SERVICE_URL:-http://ner:8000}
+      LIBRETRANSLATE_URL: ${LIBRETRANSLATE_URL:-http://libretranslate:4000}
     ports:
       - "5000:5000"
     volumes:
@@ -35,6 +36,7 @@ services:
     entrypoint: ["/app/entrypoint.sh"]
     depends_on:
       - ner
+      - libretranslate
 
     deploy:
       resources:
@@ -65,16 +67,32 @@ services:
       ALLOW_BOOTSTRAP_ADMIN: ${ALLOW_BOOTSTRAP_ADMIN:-false}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      LIBRETRANSLATE_URL: ${LIBRETRANSLATE_URL:-http://libretranslate:4000}
     volumes:
       - watcher-vault:/app/vault_data
       - watcher-db:/app/data
     command: ["python", "worker.py"]
     restart: unless-stopped
     entrypoint: ["/app/entrypoint.sh"]
+    depends_on:
+      - libretranslate
     deploy:
       resources:
         limits:
           memory: 12G
+
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    environment:
+      - LT_UPDATE_MODELS=true
+      - LT_LOAD_ONLY=en,fr,ru,fa,ar,es,zh
+      - LT_PORT=4000
+    ports:
+      - "4000:4000"
+    restart: unless-stopped
+    volumes:
+      - libretranslate_api_keys:/app/db
+      - libretranslate_models:/home/libretranslate/.local:rw
 
   ner:
     build:
@@ -89,4 +107,6 @@ services:
 volumes:
   watcher-vault:
   watcher-db:
+  libretranslate_api_keys:
+  libretranslate_models:
 
