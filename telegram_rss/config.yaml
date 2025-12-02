@@ -1,0 +1,24 @@
+database:
+  # DATABASE_URL env var will override this in Docker
+  url: postgresql+psycopg://rssuser:rsspass@postgres:5432/telegram_rss
+
+polling:
+  interval_seconds: 20
+  batch_size: 100
+
+staging:
+  release_interval_minutes: 10
+  max_items_per_release: 500
+  max_items_per_feed: 200
+  default_max_items: 200
+
+bots:
+  # Bot 1
+  - name: "ru_crime_bot"
+    theme: "ru_crime"
+    session_name: "ru_crime_session"
+
+  # Bot 2
+  - name: "fa_markets_bot"
+    theme: "fa_markets"
+    session_name: "fa_markets_session"
