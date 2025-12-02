@@ -18,6 +18,10 @@ docker compose up -d watcher watcher-worker
 
 Both services share the same data and vault volumes; adjust the `deploy.resources.limits` fields to tune memory per container.
 
+### Translation Service (LibreTranslate)
+
+The watcher now calls a dedicated LibreTranslate instance for language translation instead of loading translation models inside the Flask process. Run LibreTranslate alongside the watcher services (for example, `docker run -p 4000:5000 libretranslate/libretranslate`) and expose it at `http://localhost:4000`. Because the service is isolated in the compose network, no API key is required. If you need a different endpoint, set `LIBRETRANSLATE_URL` in the watcher environment.
+
 🚀 Key Features
 
 Smart Ingestion:
