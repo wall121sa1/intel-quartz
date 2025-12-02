@@ -8,10 +8,33 @@ from telethon import TelegramClient
 
 from .config import AppConfig
 from .db import get_session
-from .models import Bot as BotModel, Channel, Message
+from telethon.tl.types import Channel as TLChannel, Chat as TLChat, User as TLUser
+
+from .models import Bot as BotModel, Channel, ChannelNameHistory, Message
 
 SESSION_DIR = Path("/app/sessions")
 SESSION_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _entity_display_name(entity) -> str:
+    if hasattr(entity, "title") and entity.title:
+        return entity.title
+    parts = []
+    for attr in ("first_name", "last_name", "username"):
+        val = getattr(entity, attr, None)
+        if val:
+            parts.append(val)
+    return " ".join(parts)
+
+
+def _infer_dialog_type(entity) -> str:
+    if isinstance(entity, TLChannel):
+        return "channel"
+    if isinstance(entity, TLChat):
+        return "group"
+    if isinstance(entity, TLUser):
+        return "user"
+    return type(entity).__name__
 
 
 async def start_telegram_pollers(config: AppConfig):
@@ -142,11 +165,37 @@ async def _poll_single_channel(
     try:
         # Ensure we've joined the channel if needed
         try:
-            await client.get_entity(channel.telegram_id)
+            entity = await client.get_entity(channel.telegram_id)
         except Exception:
             # Try join by username; for private channels you need an invite link
             print(f"[telegram_poller] Joining channel {channel.telegram_id}")
-            await client.join_channel(channel.telegram_id)
+            entity = await client.join_channel(channel.telegram_id)
+
+        # Track name/ID changes for dialogs we already know about
+        current_name = _entity_display_name(entity)
+        dialog_type = _infer_dialog_type(entity)
+        numeric_id = getattr(entity, "id", None)
+
+        metadata_changed = False
+        if current_name and current_name != channel.display_name:
+            db.add(
+                ChannelNameHistory(
+                    channel_id=channel.id,
+                    old_name=channel.display_name,
+                    new_name=current_name,
+                )
+            )
+            channel.display_name = current_name
+            metadata_changed = True
+        if numeric_id and channel.telegram_numeric_id != numeric_id:
+            channel.telegram_numeric_id = numeric_id
+            metadata_changed = True
+        if dialog_type != channel.dialog_type:
+            channel.dialog_type = dialog_type
+            metadata_changed = True
+
+        if metadata_changed:
+            db.commit()
 
         # Fetch messages newer than last_msg_id
         from telethon.tl.functions.messages import GetHistoryRequest

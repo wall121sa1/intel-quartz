@@ -8,7 +8,11 @@ from telethon.tl.types import Channel as TLChannel, Chat as TLChat, User as TLUs
 
 from .config import load_config
 from .db import get_session
-from .models import Bot as BotModel, Channel as ChannelModel
+from .models import (
+    Bot as BotModel,
+    Channel as ChannelModel,
+    ChannelNameHistory,
+)
 
 
 def _guess_sensitivity(entity) -> str:
@@ -120,6 +124,7 @@ async def sync_dialogs_for_bot(bot_name: str, import_new: bool = True) -> int:
             entity = dialog.entity
             name = dialog.name
             eid = _guess_telegram_id(dialog)
+            numeric_id = dialog.id if isinstance(dialog.id, int) else None
 
             # Classify type (not yet stored, but could be useful later)
             if isinstance(entity, TLChannel):
@@ -147,10 +152,30 @@ async def sync_dialogs_for_bot(bot_name: str, import_new: bool = True) -> int:
                 if existing.bot_id != bot_row.id:
                     existing.bot_id = bot_row.id
                     db.commit()
+
+                # Update display/name metadata if it changed
+                new_name = name or eid
+                if new_name != existing.display_name:
+                    db.add(
+                        ChannelNameHistory(
+                            channel_id=existing.id,
+                            old_name=existing.display_name,
+                            new_name=new_name,
+                        )
+                    )
+                    existing.display_name = new_name
+                if numeric_id and existing.telegram_numeric_id != numeric_id:
+                    existing.telegram_numeric_id = numeric_id
+                if dlg_type != existing.dialog_type:
+                    existing.dialog_type = dlg_type
+                db.commit()
                 continue
 
             channel = ChannelModel(
                 telegram_id=eid,
+                telegram_numeric_id=numeric_id,
+                display_name=name or eid,
+                dialog_type=dlg_type,
                 language="unknown",         # you can edit via dashboard
                 topics=["unclassified"],    # you can edit via dashboard
                 bot_id=bot_row.id,
