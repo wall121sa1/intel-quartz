@@ -8,6 +8,7 @@ services:
       - .env
     environment:
       FLASK_ENV: production
+      ENABLE_SCHEDULER: "false"
       SECRET_KEY: ${SECRET_KEY:-change-me}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change-me-too}
       DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/app.db}
@@ -36,6 +37,41 @@ services:
       resources:
         limits:
           memory: 24G
+
+  watcher-worker:
+    build:
+      context: ..
+      dockerfile: watcher/Dockerfile.worker
+    env_file:
+      - .env
+    environment:
+      FLASK_ENV: production
+      ENABLE_SCHEDULER: "true"
+      SECRET_KEY: ${SECRET_KEY:-change-me}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change-me-too}
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/app.db}
+      STORAGE_TYPE: ${STORAGE_TYPE:-local}
+      VAULT_ROOT: ${VAULT_ROOT:-/app/vault_data}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_REGION: ${S3_REGION:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@localhost}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ALLOW_BOOTSTRAP_ADMIN: ${ALLOW_BOOTSTRAP_ADMIN:-false}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+    volumes:
+      - watcher-vault:/app/vault_data
+      - watcher-db:/app/data
+    command: ["python", "worker.py"]
+    restart: unless-stopped
+    entrypoint: ["/app/entrypoint.sh"]
+    deploy:
+      resources:
+        limits:
+          memory: 12G
 
 volumes:
   watcher-vault:

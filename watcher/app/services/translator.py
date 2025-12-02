@@ -61,4 +61,4 @@ class TranslatorService:
             return translation
         except Exception as e:
             print(f"Translation Error ({from_code}->en): {e}")
-            return text # Fallback to original if translation fails
+            return text  # Fallback to original if translation fails

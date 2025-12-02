@@ -2,6 +2,22 @@ Obsidian Ingest: RSS & NLP Intelligence Pipeline
 
 Obsidian Ingest is a self-hosted web application designed to bridge the gap between global news feeds and your personal knowledge base. It acts as an intelligent middleware that scrapes RSS feeds, uses Natural Language Processing (NLP) to extract entities, allows for human editorial review, and ultimately generates formatted Markdown files for your Obsidian vault.
 
+## Running as Microservices
+
+The web UI and heavy scraping/translation scheduler can run in separate Docker services so the worker does not compete for memory with the UI process. The included `docker-compose.yml` defines two builds:
+
+- `watcher`: serves the Flask UI with the scheduler disabled by default (`ENABLE_SCHEDULER=false`).
+- `watcher-worker`: runs only the background scheduler (`ENABLE_SCHEDULER=true`) using the dedicated `watcher/Dockerfile.worker` image.
+
+Start both services together (or scale the worker independently) with:
+
+```bash
+cd watcher
+docker compose up -d watcher watcher-worker
+```
+
+Both services share the same data and vault volumes; adjust the `deploy.resources.limits` fields to tune memory per container.
+
 🚀 Key Features
 
 Smart Ingestion:

@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask
 from flask_login import LoginManager
 from flask_migrate import Migrate
@@ -69,7 +71,13 @@ def create_app(config_class=Config):
     app.register_blueprint(bp_auth, url_prefix='/auth')
     app.register_blueprint(bp_settings, url_prefix='/settings')
 
-    SchedulerService.init_app(app)
+    # Run the scheduler only when explicitly enabled. This allows scraper/translation
+    # workloads to run inside a dedicated worker container instead of the main web
+    # process to reduce memory pressure.
+    if os.getenv("ENABLE_SCHEDULER", "false").lower() == "true":
+        SchedulerService.init_app(app)
+    else:
+        app.logger.info("Scheduler disabled (ENABLE_SCHEDULER != true).")
 
     return app
 

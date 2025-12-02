@@ -39,6 +39,9 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         _bootstrap_admin_if_configured()
-        SchedulerService.update_job_interval()
+        if os.getenv("ENABLE_SCHEDULER", "false").lower() == "true":
+            SchedulerService.update_job_interval()
+        else:
+            app.logger.info("Scheduler disabled in run.py (ENABLE_SCHEDULER != true).")
 
     app.run(debug=app.config.get('DEBUG', False), port=5000)
