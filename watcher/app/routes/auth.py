@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, session, current_app
-from flask_login import login_user, logout_user, current_user
+from flask_login import login_user, logout_user, current_user, login_required
 from flask_limiter.util import get_remote_address
 from app import limiter
 from app.services.auth_manager import AuthManager
@@ -8,13 +8,31 @@ import pyotp
 
 bp = Blueprint('auth', __name__)
 
+def _redirect_after_login(user):
+    login_user(user)
+    if user.must_change_password:
+        flash("Please set a new password before continuing.")
+        return redirect(url_for('auth.force_password_change'))
+    return redirect(url_for('main.dashboard'))
+
 def finalize_login(user):
     """Helper to check MFA status before logging in"""
     if user.mfa_secret:
         session['pre_mfa_user_id'] = user.id
         return redirect(url_for('auth.mfa_challenge'))
-    login_user(user)
-    return redirect(url_for('main.dashboard'))
+    return _redirect_after_login(user)
+
+@bp.before_app_request
+def enforce_password_change():
+    # Prevent users flagged for password reset from accessing other routes.
+    if current_user.is_authenticated and getattr(current_user, 'must_change_password', False):
+        allowed_endpoints = {
+            'auth.force_password_change',
+            'auth.logout',
+            'static',
+        }
+        if request.endpoint not in allowed_endpoints:
+            return redirect(url_for('auth.force_password_change'))
 
 @bp.route('/login', methods=['GET', 'POST'])
 @limiter.limit("5 per minute", key_func=get_remote_address, methods=["POST"])
@@ -86,11 +104,34 @@ def mfa_challenge():
             if totp.verify(code):
                 session.pop('pre_mfa_user_id')
                 login_user(user)
-                return redirect(url_for('main.dashboard'))
-        
-        flash("Invalid code. Please try again.")
+                return _redirect_after_login(user)
+
+    flash("Invalid code. Please try again.")
 
     return render_template('auth/mfa_challenge.html')
+
+@bp.route('/force-password-change', methods=['GET', 'POST'])
+@login_required
+def force_password_change():
+    if not current_user.must_change_password:
+        return redirect(url_for('main.dashboard'))
+
+    if request.method == 'POST':
+        new_password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+
+        if not new_password:
+            flash("Password cannot be empty.")
+        elif new_password != confirm_password:
+            flash("Passwords do not match.")
+        else:
+            current_user.set_password(new_password)
+            current_user.must_change_password = False
+            db.session.commit()
+            flash("Password updated successfully.")
+            return redirect(url_for('main.dashboard'))
+
+    return render_template('auth/force_password_change.html')
 
 @bp.route('/login/callback')
 @limiter.limit("10 per minute", key_func=get_remote_address)

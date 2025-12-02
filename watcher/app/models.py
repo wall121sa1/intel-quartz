@@ -47,10 +47,11 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), index=True, unique=True)
     role = db.Column(db.String(20), default='editor')
     tenant_id = db.Column(db.Integer, db.ForeignKey('tenant.id'), nullable=True)
-    
+    must_change_password = db.Column(db.Boolean, default=False, nullable=False)
+
     # ENCRYPTED: MFA secret is safe at rest
-    mfa_secret = db.Column(EncryptedString(500)) 
-    
+    mfa_secret = db.Column(EncryptedString(500))
+
     # Hashed (One-way)
     password_hash = db.Column(db.String(255))
 
