@@ -20,10 +20,16 @@ async def start_release_scheduler(config: AppConfig):
         await asyncio.sleep(interval)
 
 
+async def run_release_cycle_once(config: AppConfig):
+    """Run a single release cycle (useful for tests or manual invocations)."""
+    await _run_release_cycle(config)
+
+
 async def _run_release_cycle(config: AppConfig):
     print("[release_scheduler] Running release cycle...")
     db: Session = get_session()
     try:
+        _ensure_feeds_exist(db, config)
         feeds = db.query(Feed).all()
         for feed in feeds:
             _release_for_feed(db, feed, config)
@@ -97,3 +103,31 @@ def _release_for_feed(db: Session, feed: Feed, config: AppConfig):
         f"[release_scheduler] Feed {feed.language}/{feed.topic}: "
         f"released {len(new_messages)} messages."
     )
+
+
+def _ensure_feeds_exist(db: Session, config: AppConfig) -> None:
+    """Create feeds for any language/topic pairs referenced by channels."""
+
+    channels = db.query(Channel).filter(Channel.enabled.is_(True)).all()
+    existing = {(f.language, f.topic) for f in db.query(Feed).all()}
+
+    created = False
+    for channel in channels:
+        for topic in channel.topics:
+            key = (channel.language, topic)
+            if key in existing:
+                continue
+
+            slug = f"{channel.language}-{topic}"
+            feed = Feed(
+                language=channel.language,
+                topic=topic,
+                slug=slug,
+                max_items=config.staging.max_items_per_feed,
+            )
+            db.add(feed)
+            existing.add(key)
+            created = True
+
+    if created:
+        db.commit()
