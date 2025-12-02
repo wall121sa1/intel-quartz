@@ -5,6 +5,7 @@ import logging
 import os
 import socket
 import time
+import re
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
@@ -176,9 +177,15 @@ def process(req: ProcessRequest, request: Request) -> Dict[str, Any]:
         if tag.lower() in lower_text:
             tags.append(tag)
 
+    allowed_labels = {"ORG", "PERSON", "GPE", "LOC", "EVENT"}
     annotated = req.text
     for ent in doc.ents:
-        annotated = annotated.replace(ent.text, f"[{ent.text}](#)")
+        if ent.label_ not in allowed_labels:
+            continue
+
+        # Avoid repeatedly wrapping text that is already wikilinked
+        pattern = rf"(?<!\[\[){re.escape(ent.text)}(?!\]\])"
+        annotated = re.sub(pattern, f"[[{ent.text}]]", annotated, count=1)
 
     return {
         "text": req.text,
