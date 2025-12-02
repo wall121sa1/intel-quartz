@@ -24,7 +24,7 @@ services:
       ALLOW_BOOTSTRAP_ADMIN: ${ALLOW_BOOTSTRAP_ADMIN:-false}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
-      NER_SERVICE_URL: ${NER_SERVICE_URL:-http://ner-service:8000}`
+      NER_SERVICE_URL: ${NER_SERVICE_URL:-http://ner-service:8000}
     ports:
       - "5000:5000"
     volumes:
