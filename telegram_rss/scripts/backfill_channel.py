@@ -20,17 +20,6 @@ from app.db import init_db, get_session
 from app.models import Bot as BotModel, Channel as ChannelModel, Message as MessageModel, Feed, FeedItem
 from app.release_scheduler import run_release_cycle_once
 
-raw = telethon_to_safe_json(m)
-
-msg_row = MessageModel(
-    channel_id=channel.id,
-    telegram_msg_id=m.id,
-    sent_at=sent_at,
-    text=text,
-    url=url,
-    raw_json=raw,
-)
-
 def get_bot_env_credentials(bot_name: str):
     """
     For a bot named 'MESS_BOT', expect:
@@ -258,7 +247,7 @@ async def backfill_messages_for_channel(
                 sent_at=sent_at,
                 text=text,
                 url=url,
-                raw_json=m.to_dict() if hasattr(m, "to_dict") else None,
+                raw_json=telethon_to_safe_json(m) if hasattr(m, "to_dict") else None,
             )
             db.add(msg_row)
             new_count += 1
