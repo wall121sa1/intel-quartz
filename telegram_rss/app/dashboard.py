@@ -1,16 +1,17 @@
 import html
 
-from fastapi import APIRouter, Depends, Form, HTTPException
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from .db import get_session
-from .models import Bot, Channel
+from .models import Bot, Channel, Feed
 
 router = APIRouter()
 
 @router.get("/dashboard", response_class=HTMLResponse)
-def dashboard(db: Session = Depends(get_session)):
+def dashboard(request: Request, db: Session = Depends(get_session)):
     bots = db.query(Bot).all()
+    feeds = db.query(Feed).all()
     html_parts = ["<h1>Telegram RSS Dashboard</h1>"]
 
     html_parts.append("<h2>Bots</h2><ul>")
@@ -25,6 +26,22 @@ def dashboard(db: Session = Depends(get_session)):
 
     html_parts.append('<p><a href="/dashboard/channels">View channels</a></p>')
     html_parts.append('<p><a href="/dashboard/channels/new">Add channel</a></p>')
+
+    html_parts.append("<h2>RSS Feeds</h2><ul>")
+    if not feeds:
+        html_parts.append("<li>No feeds configured.</li>")
+    for feed in feeds:
+        safe_language = html.escape(feed.language)
+        safe_topic = html.escape(feed.topic)
+        rss_url = request.url_for(
+            "get_rss", language=feed.language, topic=feed.topic
+        )
+        safe_url = html.escape(rss_url)
+        html_parts.append(
+            f"<li>{safe_language}/{safe_topic} - "
+            f"<a href=\"{safe_url}\">{safe_url}</a></li>"
+        )
+    html_parts.append("</ul>")
 
     return HTMLResponse("".join(html_parts))
 
