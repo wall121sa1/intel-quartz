@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 from datetime import timezone
 from typing import Dict, List
 
@@ -8,6 +9,9 @@ from telethon import TelegramClient
 from .config import AppConfig
 from .db import get_session
 from .models import Bot as BotModel, Channel, Message
+
+SESSION_DIR = Path("/app/sessions")
+SESSION_DIR.mkdir(parents=True, exist_ok=True)
 
 
 async def start_telegram_pollers(config: AppConfig):
@@ -70,7 +74,7 @@ async def _run_bot_poller(bot_cfg, bot_model: BotModel, config: AppConfig):
     print(f"[telegram_poller] Starting bot poller: {bot_cfg.name}")
 
     client = TelegramClient(
-        session=bot_cfg.session_name,
+        session=str(SESSION_DIR / bot_cfg.session_name),
         api_id=bot_cfg.api_id,
         api_hash=bot_cfg.api_hash,
     )
