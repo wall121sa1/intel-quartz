@@ -10,7 +10,7 @@ from app.services.translator import TranslatorService
 
 class FeedManager:
     @staticmethod
-    def _process_entry(feed, entry):
+    def _process_entry(feed_id, feed_vault_id, entry):
         """Process and persist a single feed entry sequentially."""
         # 1. Fetch Full Content
         full_text = ScraperService.fetch_full_text(entry.link)
@@ -36,7 +36,7 @@ class FeedManager:
 
         # 5. Save (commit inside to guarantee serial ordering before next fetch)
         new_article = Article(
-            feed_id=feed.id,
+            feed_id=feed_id,
             title=title_english,            # Saved as English (used for filename)
             url=entry.link,
             pub_date=ScraperService.normalize_date(entry),
@@ -55,7 +55,7 @@ class FeedManager:
             tags=",".join(nlp_result['entities']['tags']),
 
             status='PENDING',
-            vault_id=feed.vault_id,
+            vault_id=feed_vault_id,
         )
 
         db.session.add(new_article)
@@ -71,9 +71,10 @@ class FeedManager:
         for feed in feeds:
             current_app.logger.info("Syncing feed serially", extra={"feed": feed.name})
 
-            existing_urls = {
-                url for (url,) in db.session.query(Article.url).filter(Article.feed_id == feed.id).all()
-            }
+            feed_id = feed.id
+            feed_vault_id = feed.vault_id
+
+            existing_urls = {url for (url,) in db.session.query(Article.url).filter(Article.feed_id == feed_id).all()}
 
             rss_data = ScraperService.parse_feed(feed.url)
             if not rss_data or not hasattr(rss_data, 'entries'):
@@ -86,7 +87,7 @@ class FeedManager:
                     continue
 
                 try:
-                    FeedManager._process_entry(feed, entry)
+                    FeedManager._process_entry(feed_id, feed_vault_id, entry)
                     existing_urls.add(entry.link)
                     stats['added'] += 1
 
