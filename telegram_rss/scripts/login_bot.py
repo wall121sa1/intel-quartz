@@ -75,7 +75,7 @@ async def login_bot(bot_name: str):
         # This will trigger the login flow if not authorized yet
         await client.start()
         me = await client.get_me()
-        print("\n✅ Login successful!")
+        print("\nLogin successful!")
         print(f"Logged in as: {me.username or me.first_name} (id={me.id})")
         print(f"Session saved to: {session_path}.session")
 
