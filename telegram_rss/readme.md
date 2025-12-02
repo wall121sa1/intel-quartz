@@ -20,7 +20,7 @@ Telegram RSS Service ingests messages from configured Telegram channels, stores 
 
 ## Quickstart (Docker Compose)
 1. Copy `.env.example` to `.env` and fill in values for every bot listed in `config.yaml`. Each bot expects `NAME_API_ID` and `NAME_API_HASH` where `NAME` is the uppercase bot `name` (e.g., `RU_CRIME_BOT_API_ID`).
-2. (Optional, **only when pointing at an external database**) set `DATABASE_URL` in `.env` to override the database URL in `config.yaml`. When using the bundled Postgres service, leave this unset so the app targets the `postgres` container.
+2. (Optional, **only when pointing at an external database**) set `DATABASE_URL` in `.env` to override the database URL in `config.yaml`. When using the bundled Postgres service, leave this unset so the app targets the `postgres` container (inside Docker the hostname is `postgres` on port `3432`; using `localhost` from the app container will not reach it).
 3. Start the stack:
    ```bash
    docker-compose up --build
@@ -84,6 +84,7 @@ Telethon stores session files under `/app/sessions` inside the container. The co
 ## Troubleshooting
 - Missing API credentials: ensure each bot in `config.yaml` has matching `*_API_ID` and `*_API_HASH` values in `.env`.
 - Database initialization errors: confirm PostgreSQL is running and `DATABASE_URL` points to a reachable instance.
+- Connection refused to `127.0.0.1:5432` inside Docker: remove or update `DATABASE_URL`; the compose stack uses the `postgres` service on port `3432` instead of `localhost`.
 - Empty feeds: verify channels are configured for the desired `language` and `topic`, and allow time for the poller and release scheduler to ingest and release messages.
 
 ## Security considerations
