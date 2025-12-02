@@ -49,7 +49,8 @@ def login():
     if config.get('CLOUDFLARE_CLIENT_ID'): providers.append('cloudflare')
 
     if request.method == 'POST':
-        email = request.form.get('email')
+        # Normalize inputs to avoid case/whitespace mismatches during lookup.
+        email = (request.form.get('email') or '').strip().lower()
         password = request.form.get('password')
 
         # 1. LOCAL PASSWORD LOGIN
@@ -67,7 +68,7 @@ def login():
             return render_template('auth/login.html', providers=providers)
 
         try:
-            domain = email.split('@')[1]
+            domain = email.split('@')[1].lower()
         except IndexError:
             flash("Invalid email format.")
             return render_template('auth/login.html', providers=providers)
