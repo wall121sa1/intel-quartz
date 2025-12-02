@@ -13,7 +13,7 @@ The FastAPI lifespan handler loads configuration, initializes the database engin
 
 ## Configuration loading
 - Static defaults live in `config.yaml` (polling intervals, staging limits, database URL, and bot identities).
-- At startup `app.config.load_config` reads the YAML, injects secrets from environment variables (`{BOT}_API_ID`/`{BOT}_API_HASH`), and optionally overrides the database URL from `DATABASE_URL`.
+- At startup `app.config.load_config` reads the YAML, injects secrets from environment variables (`{BOT}_API_ID`/`{BOT}_API_HASH`), and optionally overrides the database URL from `DATABASE_URL` (intended for non-Docker or remote database setups).
 - The resulting `AppConfig` instance is attached to `app.state.config` for request handlers and background workers.
 
 ## Database layer

@@ -28,7 +28,7 @@ Telegram RSS Service ingests messages from configured Telegram channels, stores 
 
 ## Quickstart (Docker Compose)
 1. Copy `.env.example` to `.env` and fill in values for every bot listed in `config.yaml`. Each bot expects `NAME_API_ID` and `NAME_API_HASH` where `NAME` is the uppercase bot `name` (e.g., `RU_CRIME_BOT_API_ID`).
-2. (Optional) Set `DATABASE_URL` in `.env` to override the database URL in `config.yaml`.
+2. (Optional, **only when pointing at an external database**) set `DATABASE_URL` in `.env` to override the database URL in `config.yaml`. When using the bundled Postgres service, leave this unset so the app targets the `postgres` container.
 3. Start the stack:
    ```bash
    docker-compose up --build
@@ -39,7 +39,7 @@ Telegram RSS Service ingests messages from configured Telegram channels, stores 
 
 ## Configuration reference
 ### Environment variables (.env)
-- `DATABASE_URL` — overrides `database.url` from `config.yaml` (PostgreSQL connection string).
+- `DATABASE_URL` — overrides `database.url` from `config.yaml` (PostgreSQL connection string). Skip this when running with `docker-compose` unless you intend to reach a remote database.
 - `{BOT_NAME}_API_ID` / `{BOT_NAME}_API_HASH` — required for each bot listed under `bots` in `config.yaml` (e.g., `RU_CRIME_BOT_API_ID`).
 
 ### `config.yaml`
