@@ -21,13 +21,13 @@ services:
       # DB connection (overrides config.yaml)
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://rssuser:rsspass@postgres:5432/telegram_rss}
 
-      # Bot 1 (ru_crime_bot)
-      RU_CRIME_BOT_API_ID: ${RU_CRIME_BOT_API_ID:?Set RU_CRIME_BOT_API_ID in .env}
-      RU_CRIME_BOT_API_HASH: ${RU_CRIME_BOT_API_HASH:?Set RU_CRIME_BOT_API_HASH in .env}
+      # Bot 1 (Mess Bot)
+      MESS_BOT_API_ID: ${MESS_BOT_API_ID:?Set BOT_API_ID in .env}
+      MESS_BOT_API_HASH: ${MESS_BOT_API_HASH:?Set API_HASH in .env}
 
       # Bot 2 (fa_markets_bot)
-      FA_MARKETS_BOT_API_ID: ${FA_MARKETS_BOT_API_ID:?Set FA_MARKETS_BOT_API_ID in .env}
-      FA_MARKETS_BOT_API_HASH: ${FA_MARKETS_BOT_API_HASH:?Set FA_MARKETS_BOT_API_HASH in .env}
+     # FA_MARKETS_BOT_API_ID: ${FA_MARKETS_BOT_API_ID:?Set FA_MARKETS_BOT_API_ID in .env}
+     # FA_MARKETS_BOT_API_HASH: ${FA_MARKETS_BOT_API_HASH:?Set FA_MARKETS_BOT_API_HASH in .env}
     volumes:
       - ./config.yaml:/app/config.yaml:ro
       # Persist Telethon session files across restarts without shadowing the app code
