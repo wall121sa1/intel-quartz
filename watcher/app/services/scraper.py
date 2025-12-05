@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from datetime import datetime
 from time import mktime
+from urllib.parse import parse_qsl, urlparse, urlunparse, urlencode
 
 import feedparser
 import requests
@@ -13,6 +14,47 @@ class ScraperService:
     ARTICLE_TIMEOUT = 15
     PARSE_TIMEOUT = 10
     _session = None
+
+    @staticmethod
+    def normalize_url(url: str | None) -> str | None:
+        """Normalize URLs to reduce duplicate articles from the same source.
+
+        The normalization is intentionally conservative: it trims whitespace,
+        lowercases the scheme/host, strips fragments, removes trailing slashes,
+        and drops common tracking parameters (utm_*). Query parameters are
+        re-encoded to provide stable ordering for comparisons.
+        """
+
+        if not url:
+            return None
+
+        cleaned = url.strip()
+        if not cleaned:
+            return None
+
+        try:
+            parsed = urlparse(cleaned)
+            query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
+            filtered_query = [
+                (k, v) for k, v in query_pairs if not k.lower().startswith("utm_")
+            ]
+
+            normalized = urlunparse(
+                (
+                    parsed.scheme.lower(),
+                    parsed.netloc.lower(),
+                    parsed.path.rstrip("/") or "/",
+                    "",
+                    urlencode(filtered_query, doseq=True),
+                    "",
+                )
+            )
+
+            return normalized
+        except Exception:
+            # If anything goes wrong, fall back to the trimmed value so we still
+            # have a stable string to compare.
+            return cleaned
 
     @staticmethod
     def parse_feed(feed_url):

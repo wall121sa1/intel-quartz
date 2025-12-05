@@ -29,13 +29,17 @@ def fetch_feed_task(self, feed_id):
         new_count = 0
 
         for entry in rss_data.entries:
+            normalized_link = ScraperService.normalize_url(getattr(entry, "link", None))
+            if not normalized_link:
+                continue
+
             # Check duplication
-            if Article.query.filter_by(url=entry.link).first():
+            if Article.query.filter_by(url=normalized_link).first():
                 continue
 
             # Process Article serially
             try:
-                process_single_article(feed, entry)
+                process_single_article(feed, entry, normalized_link)
                 new_count += 1
             except Exception as e:
                 logger.error(f"Error processing article {entry.link}: {e}")
@@ -48,10 +52,10 @@ def fetch_feed_task(self, feed_id):
         raise self.retry(exc=e, countdown=60)
 
 
-def process_single_article(feed, entry):
+def process_single_article(feed, entry, normalized_link: str):
     """Thin wrapper that reuses the sequential FeedManager path."""
     try:
-        FeedManager._process_entry(feed, entry)
+        FeedManager._process_entry(feed.id, feed.vault_id, entry, normalized_link)
     except Exception:
         db.session.rollback()
         raise
