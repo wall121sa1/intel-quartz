@@ -24,6 +24,12 @@ def main() -> None:
 
     try:
         while True:
+            with app.app_context():
+                try:
+                    # Pull the latest interval so user changes take effect without a restart
+                    SchedulerService.update_job_interval()
+                except Exception:
+                    app.logger.exception("Failed to refresh scheduler interval; retaining previous schedule.")
             time.sleep(60)
     except KeyboardInterrupt:
         app.logger.info("Background worker shutting down")
