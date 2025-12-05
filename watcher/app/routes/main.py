@@ -205,13 +205,19 @@ def dismiss_article(id):
 @bp.route('/dismiss-bulk', methods=['POST'])
 @login_required
 def dismiss_bulk():
-    article_ids = request.form.getlist('article_ids')
+    raw_ids = request.form.getlist('article_ids')
+    try:
+        article_ids = [int(article_id) for article_id in raw_ids]
+    except ValueError:
+        flash('Invalid article selection')
+        return redirect(url_for('main.dashboard'))
+
     if not article_ids:
         flash('No articles selected')
         return redirect(url_for('main.dashboard'))
-    
+
     count = Article.query.filter(Article.id.in_(article_ids)).update(
-        {Article.status: 'REJECTED'}, 
+        {Article.status: 'REJECTED'},
         synchronize_session=False
     )
     db.session.commit()
