@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify
 from flask_login import login_required
 from app.models import db, Article, CustomEntity, Feed, SystemConfig
+from sqlalchemy import case, func
 from app.services.manager import FeedManager
 from app.services.storage import StorageService
 from app.services.nlp import NLPService
@@ -44,6 +45,33 @@ def learn_entities(form_data):
         NLPService.reload_model()
         print(f"Feedback Loop: Learned {new_rules_count} new entities.")
 
+
+def article_type_metrics():
+    """Summarize article counts grouped by feed type."""
+    rows = (
+        db.session.query(
+            func.coalesce(Feed.type_tag, 'Uncategorized').label('type_tag'),
+            func.count(Article.id).label('total'),
+            func.sum(case((Article.status == 'APPROVED', 1), else_=0)).label('approved'),
+            func.sum(case((Article.status == 'PENDING', 1), else_=0)).label('pending'),
+            func.sum(case((Article.status == 'REJECTED', 1), else_=0)).label('rejected'),
+        )
+        .join(Article, Article.feed_id == Feed.id)
+        .group_by(Feed.type_tag)
+        .all()
+    )
+
+    return [
+        {
+            'type_tag': row.type_tag or 'Uncategorized',
+            'total': int(row.total or 0),
+            'approved': int(row.approved or 0),
+            'pending': int(row.pending or 0),
+            'rejected': int(row.rejected or 0),
+        }
+        for row in rows
+    ]
+
 # --- ROUTES ---
 
 @bp.route('/')
@@ -73,19 +101,23 @@ def dashboard():
 
     queue_query = Article.query.join(Feed).filter(Article.status == 'PENDING')
 
-    selected_source = request.args.get('source', '')
-    selected_reliability = request.args.get('reliability', '')
+    selected_sources = [src for src in request.args.getlist('source') if src]
+    selected_reliabilities = [rel for rel in request.args.getlist('reliability') if rel]
     start_raw = request.args.get('start', '')
     end_raw = request.args.get('end', '')
 
-    if selected_source:
-        try:
-            queue_query = queue_query.filter(Feed.id == int(selected_source))
-        except ValueError:
-            flash('Invalid source filter provided')
+    if selected_sources:
+        valid_sources = []
+        for raw_source in selected_sources:
+            try:
+                valid_sources.append(int(raw_source))
+            except ValueError:
+                flash('Invalid source filter provided')
+        if valid_sources:
+            queue_query = queue_query.filter(Feed.id.in_(valid_sources))
 
-    if selected_reliability:
-        queue_query = queue_query.filter(Feed.reliability == selected_reliability)
+    if selected_reliabilities:
+        queue_query = queue_query.filter(Feed.reliability.in_(selected_reliabilities))
 
     def parse_to_utc(value):
         if not value:
@@ -113,8 +145,8 @@ def dashboard():
     reliabilities = sorted({feed.reliability for feed in sources if feed.reliability})
 
     filter_values = {
-        'source': selected_source,
-        'reliability': selected_reliability,
+        'sources': selected_sources,
+        'reliabilities': selected_reliabilities,
         'start': start_raw,
         'end': end_raw
     }
@@ -182,7 +214,8 @@ def approve_article(id):
             article,
             article.source.name,
             article.source.reliability,
-            article.source.type_tag
+            article.source.type_tag,
+            article.source.country
         )
         article.status = 'APPROVED'
         db.session.commit()
@@ -240,6 +273,19 @@ def history():
     approved = Article.query.filter_by(status='APPROVED').order_by(Article.added_date.desc()).limit(50).all()
     rejected = Article.query.filter_by(status='REJECTED').order_by(Article.added_date.desc()).limit(50).all()
     return render_template('main/history.html', approved=approved, rejected=rejected)
+
+
+@bp.route('/statistics')
+@login_required
+def statistics():
+    metrics = article_type_metrics()
+    return render_template('main/statistics.html', metrics=metrics)
+
+
+@bp.route('/statistics/data')
+@login_required
+def statistics_data():
+    return jsonify(article_type_metrics())
 
 
 @bp.route('/queue/status')

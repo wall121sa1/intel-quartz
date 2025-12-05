@@ -78,6 +78,7 @@ class Feed(db.Model):
     name = db.Column(db.String(100))
     url = db.Column(db.String(255), unique=True)
     reliability = db.Column(db.String(50))
+    country = db.Column(db.String(50))
     type_tag = db.Column(db.String(50))
     vault_id = db.Column(db.String(50), default='default')
     articles = db.relationship('Article', backref='source', lazy='dynamic')
