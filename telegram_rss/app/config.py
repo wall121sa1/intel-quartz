@@ -17,6 +17,7 @@ class BotConfig(BaseModel):
 class PollingConfig(BaseModel):
     interval_seconds: int = 20
     batch_size: int = 100
+    per_channel_delay_seconds: int = 1
 
 class StagingConfig(BaseModel):
     release_interval_minutes: int = 10
