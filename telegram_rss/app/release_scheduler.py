@@ -66,8 +66,7 @@ def _release_for_feed(db: Session, feed: Feed, config: AppConfig):
             f"[release_scheduler] Feed {feed.language}/{feed.topic}: "
             "no enabled channels to release from."
         )
-        feed.last_release_at = now
-        db.commit()
+        # Do not advance last_release_at; we might receive backlog messages later.
         return
 
     channel_ids = [c.id for c in channels]
@@ -91,8 +90,8 @@ def _release_for_feed(db: Session, feed: Feed, config: AppConfig):
             f"[release_scheduler] Feed {feed.language}/{feed.topic}: "
             "no new messages to release."
         )
-        feed.last_release_at = now
-        db.commit()
+        # Preserve last_release_at so older backlog messages are still eligible
+        # on the next cycle.
         return
 
     # Promote messages to feed_items
