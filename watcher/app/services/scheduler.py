@@ -6,6 +6,7 @@ from flask import current_app
 from sqlalchemy.exc import OperationalError, ProgrammingError 
 
 scheduler = APScheduler()
+_current_interval_minutes = None
 
 def run_schedule_task(app):
     """
@@ -56,6 +57,12 @@ class SchedulerService:
             print(f"Scheduler Config Error: {e}")
             interval = 60
 
+        global _current_interval_minutes
+
+        # Avoid tearing down/recreating the job when the interval hasn't changed
+        if _current_interval_minutes == interval:
+            return
+
         # Remove existing job if it exists
         if scheduler.get_job('auto_pull_feeds'):
             scheduler.remove_job('auto_pull_feeds')
@@ -71,3 +78,5 @@ class SchedulerService:
             )
         else:
             print("Scheduler: Auto-pull disabled (Interval set to 0).")
+
+        _current_interval_minutes = interval

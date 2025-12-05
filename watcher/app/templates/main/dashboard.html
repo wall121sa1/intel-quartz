@@ -143,6 +143,32 @@
 </form>
 
 <script>
+    const queueStatusUrl = "{{ url_for('main.queue_status') }}";
+    const initialLastRun = {{ last_run_raw|tojson }};
+    const initialPendingCount = {{ stats.new }};
+    const pollIntervalMs = 15000;
+
+    async function checkForUpdates() {
+        try {
+            const response = await fetch(queueStatusUrl, { cache: 'no-store' });
+            if (!response.ok) {
+                return;
+            }
+
+            const data = await response.json();
+            const hasNewRun = data.last_run_timestamp && data.last_run_timestamp !== initialLastRun;
+            const hasMorePending = typeof data.pending_count === 'number' && data.pending_count > initialPendingCount;
+
+            if (hasNewRun || hasMorePending) {
+                window.location.reload();
+            }
+        } catch (err) {
+            console.error('Failed to poll queue status', err);
+        }
+    }
+
+    setInterval(checkForUpdates, pollIntervalMs);
+
     // Select All Logic
     document.getElementById('selectAll').addEventListener('change', function() {
         const checkboxes = document.querySelectorAll('.item-check');

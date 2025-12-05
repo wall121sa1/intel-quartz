@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify
 from flask_login import login_required
 from app.models import db, Article, CustomEntity, Feed, SystemConfig
 from app.services.manager import FeedManager
@@ -124,6 +124,7 @@ def dashboard():
         stats=stats,
         queue=queue,
         last_run=last_run_display,
+        last_run_raw=last_run_str,
         sources=sources,
         reliabilities=reliabilities,
         filter_values=filter_values
@@ -239,3 +240,13 @@ def history():
     approved = Article.query.filter_by(status='APPROVED').order_by(Article.added_date.desc()).limit(50).all()
     rejected = Article.query.filter_by(status='REJECTED').order_by(Article.added_date.desc()).limit(50).all()
     return render_template('main/history.html', approved=approved, rejected=rejected)
+
+
+@bp.route('/queue/status')
+@login_required
+def queue_status():
+    """Return queue metadata so the UI can detect when new articles arrive."""
+    return jsonify({
+        'pending_count': Article.query.filter_by(status='PENDING').count(),
+        'last_run_timestamp': SystemConfig.get('last_run_timestamp') or ''
+    })
