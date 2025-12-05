@@ -4,6 +4,7 @@ import os
 import time
 import secrets
 import string
+from sqlalchemy import inspect, text
 from sqlalchemy.exc import OperationalError
 
 app = create_app()
@@ -30,6 +31,29 @@ def generate_secure_password(length=24):
     alphabet = string.ascii_letters + string.digits + "-_!@#"
     return ''.join(secrets.choice(alphabet) for i in range(length))
 
+def apply_schema_patches():
+    """Lightweight schema migrations for existing databases.
+
+    This keeps older deployments aligned with new application fields without
+    requiring manual SQL or data loss.
+    """
+    inspector = inspect(db.engine)
+
+    if 'feed' in inspector.get_table_names():
+        feed_columns = {column['name'] for column in inspector.get_columns('feed')}
+
+        if 'country' not in feed_columns:
+            print("DB: Adding `country` column to feed table...")
+            try:
+                db.session.execute(text("ALTER TABLE feed ADD COLUMN country VARCHAR(50)"))
+                db.session.commit()
+                print("DB: `country` column added to feed table.")
+            except Exception as exc:
+                db.session.rollback()
+                print(f"DB: Failed to add `country` column automatically: {exc}")
+    else:
+        print("DB: feed table not found; will be created automatically if new database.")
+
 def init():
     with app.app_context():
         # 1. Wait for DB
@@ -40,6 +64,9 @@ def init():
         # 2. Create Tables
         print("DB: Creating all tables...")
         db.create_all()
+
+        # 2a. Apply lightweight migrations for existing databases
+        apply_schema_patches()
         
         # 3. Create Admin
         if not User.query.first():
