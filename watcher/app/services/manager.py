@@ -76,7 +76,7 @@ class FeedManager:
             feed_id = feed.id
             feed_vault_id = feed.vault_id
 
-            existing_urls = {url for (url,) in db.session.query(Article.url).filter(Article.feed_id == feed_id).all()}
+            existing_urls = {url for (url,) in db.session.query(Article.url).all()}
 
             rss_data = ScraperService.parse_feed(feed.url)
             if not rss_data or not hasattr(rss_data, 'entries'):
