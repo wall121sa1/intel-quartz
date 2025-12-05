@@ -1,6 +1,8 @@
 import json
-import boto3
+import re
 from pathlib import Path
+
+import boto3
 from slugify import slugify
 from flask import current_app
 
@@ -115,16 +117,28 @@ class StorageService:
             if not csv_string:
                 return ""
             items = csv_string.split(',')
-            return "\n".join([f"  - {item.strip()}" for item in items if item.strip()])
+            sanitized = [
+                StorageService._sanitize_frontmatter_value(item.strip())
+                for item in items
+                if item.strip()
+            ]
+            sanitized = [item for item in sanitized if item]
+            return "\n".join([f"  - {item}" for item in sanitized])
+
+        safe_title = StorageService._sanitize_frontmatter_value(article.title)
+        safe_feed_name = StorageService._sanitize_frontmatter_value(feed_name)
+        safe_reliability = StorageService._sanitize_frontmatter_value(reliability)
+        safe_language = StorageService._sanitize_frontmatter_value(article.language)
+        safe_feed_type = StorageService._sanitize_frontmatter_value(feed_type or '')
 
         md_output = f"""---
-title: "{article.title}"
+title: "{safe_title}"
 date: {article.pub_date.strftime('%Y-%m-%d %H:%M')}
 added: {article.added_date.strftime('%Y-%m-%d %H:%M')}
-source: "{feed_name}"
-reliability: "{reliability}"
-language: "{article.language}"
-feed_type: "{feed_type or ''}"
+source: "{safe_feed_name}"
+reliability: "{safe_reliability}"
+language: "{safe_language}"
+feed_type: "{safe_feed_type}"
 tags:
 {yaml_list(article.tags)}
 organizations:
@@ -167,3 +181,11 @@ link: {article.url}
         if not csv_string:
             return []
         return [item.strip() for item in csv_string.split(',') if item.strip()]
+
+    @staticmethod
+    def _sanitize_frontmatter_value(value: str | None) -> str:
+        if value is None:
+            return ""
+
+        cleaned = re.sub(r"[^A-Za-z0-9 ]+", " ", str(value))
+        return " ".join(cleaned.split())
