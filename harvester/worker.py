@@ -10,7 +10,14 @@ from countryinfo import CountryInfo
 
 # --- CONFIGURATION ---
 # We read these from Docker environment variables
-FUSEKI_ENDPOINT = os.getenv("FUSEKI_ENDPOINT", "http://localhost:3030/knowledge-graph/update")
+FUSEKI_DATASET_NAME = os.getenv("FUSEKI_DATASET_NAME", "offchain-knowledge")
+FUSEKI_ENDPOINT = os.getenv(
+    "FUSEKI_ENDPOINT", f"http://localhost:3030/{FUSEKI_DATASET_NAME}/update"
+)
+FUSEKI_ADMIN_USER = os.getenv("FUSEKI_ADMIN_USER", "admin")
+FUSEKI_ADMIN_PASSWORD = os.getenv("FUSEKI_ADMIN_PASSWORD")
+FUSEKI_USER = os.getenv("FUSEKI_USER")
+FUSEKI_PASSWORD = os.getenv("FUSEKI_PASSWORD")
 WATCH_DIR = os.getenv("WATCH_DIR", "/data")
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "60"))
 BASE_URI = os.getenv("BASE_URI", "http://myvault.com/")
@@ -44,6 +51,91 @@ def get_coordinates(location_name):
     except Exception:
         pass
     return None
+
+
+def extract_dataset_name(endpoint_url):
+    parsed = urllib.parse.urlparse(endpoint_url)
+    parts = [p for p in parsed.path.split("/") if p]
+    if not parts:
+        return None
+
+    # Endpoints are typically /<dataset>/update or /<dataset>/query.
+    if parts[-1] in {"update", "query", "data"} and len(parts) >= 2:
+        return parts[-2]
+    return parts[-1]
+
+
+def resolve_dataset_name():
+    explicit_name = FUSEKI_DATASET_NAME.strip()
+    inferred_name = extract_dataset_name(FUSEKI_ENDPOINT)
+
+    if inferred_name and inferred_name != explicit_name:
+        print(
+            f"⚠️ FUSEKI_ENDPOINT points to dataset '{inferred_name}', but FUSEKI_DATASET_NAME is set to '{explicit_name}'. Using '{explicit_name}'."
+        )
+
+    return explicit_name or inferred_name
+
+
+def fuseki_update_auth():
+    if FUSEKI_PASSWORD and (FUSEKI_USER or FUSEKI_ADMIN_USER):
+        return (FUSEKI_USER or FUSEKI_ADMIN_USER, FUSEKI_PASSWORD)
+    if FUSEKI_ADMIN_PASSWORD:
+        return (FUSEKI_ADMIN_USER, FUSEKI_ADMIN_PASSWORD)
+    return None
+
+
+def ensure_fuseki_dataset():
+    dataset_name = resolve_dataset_name()
+    parsed = urllib.parse.urlparse(FUSEKI_ENDPOINT)
+    fuseki_base = f"{parsed.scheme}://{parsed.netloc}"
+
+    if not dataset_name:
+        print("⚠️ Unable to infer dataset name from FUSEKI_ENDPOINT; skipping dataset creation check.")
+        return
+
+    dataset_url = f"{fuseki_base}/$/datasets/{dataset_name}"
+    auth = None
+    if FUSEKI_ADMIN_PASSWORD:
+        auth = (FUSEKI_ADMIN_USER, FUSEKI_ADMIN_PASSWORD)
+
+    try:
+        response = requests.get(dataset_url, auth=auth, timeout=10)
+        if response.status_code == 200:
+            try:
+                metadata = response.json()
+                ds_type = metadata.get("ds.type") or metadata.get("dbType")
+                if ds_type and ds_type.lower() != "tdb2":
+                    print(
+                        f"⚠️ Dataset '{dataset_name}' exists but is type '{ds_type}', expected 'tdb2' for persistence."
+                    )
+                return
+            except ValueError:
+                # Non-JSON response; assume dataset exists but cannot confirm type.
+                return
+        if response.status_code not in {401, 403, 404}:
+            print(f"⚠️ Unexpected status checking dataset '{dataset_name}': {response.status_code}")
+        if response.status_code in {401, 403}:
+            print("⚠️ Fuseki admin credentials are missing or invalid; cannot create dataset automatically.")
+            return
+    except Exception as e:
+        print(f"⚠️ Failed to query Fuseki datasets: {e}")
+        return
+
+    try:
+        create_response = requests.post(
+            f"{fuseki_base}/$/datasets",
+            data={"dbName": dataset_name, "dbType": "tdb2"},
+            auth=auth,
+            timeout=15,
+        )
+        create_response.raise_for_status()
+        print(f"✅ Created Fuseki TDB2 dataset '{dataset_name}'")
+    except Exception as e:
+        error_detail = ""
+        if 'create_response' in locals() and create_response is not None:
+            error_detail = f" (status: {create_response.status_code}, body: {create_response.text[:200]})"
+        print(f"❌ Unable to create Fuseki dataset '{dataset_name}': {e}{error_detail}")
 
 def process_article(md_path, json_path):
     # Check if we have processed this recently to avoid spamming Fuseki (Optional optimization)
@@ -95,12 +187,23 @@ def process_article(md_path, json_path):
     if triples:
         update_query = f"DELETE {{ {article_uri} ?p ?o }} WHERE {{ {article_uri} ?p ?o }}; INSERT DATA {{ {' '.join(triples)} }}"
         try:
-            requests.post(FUSEKI_ENDPOINT, data={'update': update_query})
+            response = requests.post(
+                FUSEKI_ENDPOINT,
+                data={'update': update_query},
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                auth=fuseki_update_auth(),
+                timeout=15,
+            )
+            response.raise_for_status()
             print(f"✅ Synced: {slug}")
         except Exception as e:
-            print(f"❌ Error syncing {slug}: {e}")
+            error_detail = ""
+            if 'response' in locals() and response is not None:
+                error_detail = f" (status: {response.status_code}, body: {response.text[:200]})"
+            print(f"❌ Error syncing {slug}: {e}{error_detail}")
 
 def main():
+    ensure_fuseki_dataset()
     print(f"🚀 Harvester running. Watching {WATCH_DIR} recursively...")
     while True:
         # Recursive Scan
