@@ -9,7 +9,7 @@ import { FullSlug } from "./quartz/util/path"
  */
 const config: QuartzConfig = {
   configuration: {
-    pageTitle: "Offchain Intelligence",
+    pageTitle: "Offchain Intelligence Explorer",
     pageTitleSuffix: "",
     enableSPA: true,
     enablePopovers: true,
@@ -96,11 +96,11 @@ const config: QuartzConfig = {
         title: "Fuseki SPARQL explorer",
         slug: "fuseki-explorer" as FullSlug,
         endpoint: "http://fuseki:3030/knowledge-graph/sparql",
-        baseUri: "http://myvault.com/",
+        baseUri: "file:///data/",
       }),
       Plugin.MapPage({footerConfig: {
         disclaimer: "The information contained in this map is sensitive. Unauthorized access, use, or distribution is strictly prohibited.",
-        copyright: "Crystal Intelligence. All rights reserved."
+        copyright: "(C) Offchain Info Limited. All rights reserved."
       }}),
     ],
   },

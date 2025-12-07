@@ -78,7 +78,7 @@ export const DEFAULT_FOOTER_CONFIG: FooterConfig = {
     { text: "Alerts", url: "/alerts" }
   ],
   disclaimer: "This map contains sensitive intelligence data. Unauthorized access, distribution, or use is strictly prohibited and may result in legal action. By accessing this system, you acknowledge that you are authorized to view this content.",
-  copyright: "Crystal Intelligence. All information is proprietary and confidential."
+  copyright: "Offchain.Info. All information is proprietary and confidential."
 }
 
 // Utility functions for processing location data
