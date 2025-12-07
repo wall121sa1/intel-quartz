@@ -27,6 +27,8 @@ HARVESTER_DATABASE_URL = os.getenv("HARVESTER_DATABASE_URL")
 if not BASE_URI.endswith("/"):
     BASE_URI = f"{BASE_URI}/"
 
+SCHEMA = "https://schema.org/"
+
 geolocator = Nominatim(user_agent="obsidian_harvester_v2")
 
 def clean_id(text):
@@ -303,33 +305,41 @@ def process_article(md_path, json_path, db_conn, processed_cache):
     # --- Article metadata ---
     metadata = post.metadata or {}
     title = metadata.get('title', slug)
-    triples.append(f'{article_uri} <{BASE_URI}prop/title> {literal(title)} .')
-    triples.append(f'{article_uri} <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <{BASE_URI}class/Article> .')
+    triples.append(f'{article_uri} <{SCHEMA}headline> {literal(title)} .')
+    triples.append(f'{article_uri} <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <{SCHEMA}Article> .')
 
     date_value = metadata.get('date') or metadata.get('added')
     if date_value:
-        triples.append(f'{article_uri} <{BASE_URI}prop/date> {literal(date_value)} .')
+        triples.append(f'{article_uri} <{SCHEMA}datePublished> {literal(date_value)} .')
 
     link = metadata.get('link') or metadata.get('url')
     if link:
-        triples.append(f'{article_uri} <{BASE_URI}prop/sourceUrl> {literal(link)} .')
+        triples.append(f'{article_uri} <{SCHEMA}url> {literal(link)} .')
 
-    for field in ['source', 'reliability', 'language', 'feed_type', 'country']:
+    literal_field_map = {
+        "source": f"{SCHEMA}publisher",
+        "reliability": f"{SCHEMA}contentRating",
+        "language": f"{SCHEMA}inLanguage",
+        "feed_type": f"{SCHEMA}genre",
+        "country": f"{SCHEMA}contentLocation",
+    }
+
+    for field, predicate in literal_field_map.items():
         if metadata.get(field):
-            triples.append(f'{article_uri} <{BASE_URI}prop/{field}> {literal(metadata[field])} .')
+            triples.append(f'{article_uri} <{predicate}> {literal(metadata[field])} .')
 
     if metadata.get('tags'):
         tags = metadata['tags']
         if isinstance(tags, str):
             tags = [t.strip() for t in tags.split(',') if t.strip()]
         for tag in tags:
-            triples.append(f'{article_uri} <{BASE_URI}prop/tag> {literal(tag)} .')
+            triples.append(f'{article_uri} <{SCHEMA}keywords> {literal(tag)} .')
 
     # --- Entities and mentions ---
     entity_map = {
         "organizations": "Organization",
         "people": "Person",
-        "locations": "Location",
+        "locations": "Place",
         "events": "Event",
     }
 
@@ -353,10 +363,10 @@ def process_article(md_path, json_path, db_conn, processed_cache):
         for item in sorted(merged_entities[category]):
             sanitized_item = item.replace('"', '')
             entity_uri = f"<{BASE_URI}entity/{canonical_entity_id(item)}>"
-            triples.append(f'{article_uri} <{BASE_URI}prop/mentions> {entity_uri} .')
-            triples.append(f'{entity_uri} <{BASE_URI}prop/mentionedIn> {article_uri} .')
+            triples.append(f'{article_uri} <{SCHEMA}mentions> {entity_uri} .')
+            triples.append(f'{entity_uri} <{SCHEMA}subjectOf> {article_uri} .')
             triples.append(
-                f'{entity_uri} <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <{BASE_URI}class/{class_name}> .'
+                f'{entity_uri} <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <{SCHEMA}{class_name}> .'
             )
             triples.append(f'{entity_uri} <http://www.w3.org/2000/01/rdf-schema#label> {literal(sanitized_item)} .')
 
