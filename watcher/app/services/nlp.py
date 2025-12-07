@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import socket
+import time
 from datetime import datetime, timedelta
 from threading import Lock, Thread
 
@@ -80,6 +81,8 @@ _remote_failures = 0
 _remote_usage_announced = False
 
 _reprocess_lock = Lock()
+_reprocess_batch_size = int(os.getenv("NER_REPROCESS_BATCH_SIZE", "50"))
+_reprocess_batch_pause_seconds = float(os.getenv("NER_REPROCESS_BATCH_PAUSE_SECONDS", "0"))
 
 
 def _collect_custom_rules():
@@ -249,8 +252,15 @@ class NLPService:
             print(message)
 
     @staticmethod
-    def reprocess_all_articles(app=None, batch_size: int = 50) -> int:
-        """Re-run NER over all stored articles so new entities are tagged automatically."""
+    def reprocess_all_articles(
+        app=None, batch_size: int | None = None, pause_seconds: float | None = None
+    ) -> int:
+        """Re-run NER over all stored articles so new entities are tagged automatically.
+
+        Batch size and pause duration can be customized using the
+        ``NER_REPROCESS_BATCH_SIZE`` and ``NER_REPROCESS_BATCH_PAUSE_SECONDS``
+        environment variables to reduce CPU and DB pressure during bulk updates.
+        """
 
         app_obj = app or (current_app._get_current_object() if current_app else None)
         if not app_obj:
@@ -268,6 +278,13 @@ class NLPService:
         if not _reprocess_lock.acquire(blocking=False):
             logger.info("NLP: Article reprocess already running; skipping duplicate trigger.")
             return 0
+
+        batch_size = max(int(batch_size or _reprocess_batch_size), 1)
+        pause_seconds = (
+            _reprocess_batch_pause_seconds
+            if pause_seconds is None
+            else max(pause_seconds, 0)
+        )
 
         updated = 0
         try:
@@ -315,6 +332,9 @@ class NLPService:
 
                     db.session.commit()
                     db.session.expunge_all()
+
+                    if pause_seconds:
+                        time.sleep(pause_seconds)
 
             logger.info("NLP: Completed article reprocess; %s articles updated", updated)
             return updated
