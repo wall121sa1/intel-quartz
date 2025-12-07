@@ -83,6 +83,7 @@ export const BuildArgv = {
   },
   port: {
     number: true,
+    alias: ["p"],
     default: 8080,
     describe: "port to serve Quartz on",
   },
