@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 
 {% block content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/semantic-ui@2.5.0/dist/semantic.min.css">
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/semantic-ui@2.5.0/dist/semantic.min.js"></script>
+
 <div class="row mb-4 align-items-center">
     <div class="col-md-6">
         <h1>Review Queue</h1>
@@ -49,21 +53,21 @@
         <div class="row g-3 align-items-end">
             <div class="col-md-3">
                 <label class="form-label">Source</label>
-                <select class="form-select" name="source">
-                    <option value="">All sources</option>
+                <select class="form-select ui fluid search selection dropdown" name="source" id="sourceDropdown" multiple>
                     {% for source in sources %}
-                        <option value="{{ source.id }}" {% if filter_values.source == source.id|string %}selected{% endif %}>{{ source.name }}</option>
+                        <option value="{{ source.id }}" {% if filter_values.sources and (source.id|string) in filter_values.sources %}selected{% endif %}>{{ source.name }}</option>
                     {% endfor %}
                 </select>
+                <div class="form-text">Search and select one or more sources.</div>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Reliability</label>
-                <select class="form-select" name="reliability">
-                    <option value="">All levels</option>
+                <select class="form-select" name="reliability" multiple size="3">
                     {% for reliability in reliabilities %}
-                        <option value="{{ reliability }}" {% if filter_values.reliability == reliability %}selected{% endif %}>{{ reliability }}</option>
+                        <option value="{{ reliability }}" {% if filter_values.reliabilities and reliability in filter_values.reliabilities %}selected{% endif %}>{{ reliability }}</option>
                     {% endfor %}
                 </select>
+                <div class="form-text">Choose one or more confidence levels.</div>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Published After (UTC)</label>
@@ -99,6 +103,7 @@
                     <tr>
                         <th style="width: 40px;"></th>
                         <th>Source</th>
+                        <th>Country</th>
                         <th>Reliability</th>
                         <th>Title</th>
                         <th>Date (UTC)</th>
@@ -112,6 +117,7 @@
                             <input type="checkbox" name="article_ids" value="{{ article.id }}" class="form-check-input item-check">
                         </td>
                         <td class="align-middle"><span class="badge bg-info text-dark">{{ article.source.name }}</span></td>
+                        <td class="align-middle">{{ article.source.country or '—' }}</td>
                         <td class="align-middle">
                             <span class="badge bg-light text-dark border">{{ article.source.reliability or 'N/A' }}</span>
                         </td>
@@ -130,7 +136,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="5" class="text-center py-5 text-muted">
+                        <td colspan="7" class="text-center py-5 text-muted">
                             <i class="bi bi-check-circle fs-1 d-block mb-2"></i>
                             No new articles. You are all caught up!
                         </td>
@@ -147,6 +153,13 @@
     const initialLastRun = {{ last_run_raw|tojson }};
     const initialPendingCount = {{ stats.new }};
     const pollIntervalMs = 15000;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        $('#sourceDropdown').dropdown({
+            fullTextSearch: true,
+            clearable: true,
+        });
+    });
 
     async function checkForUpdates() {
         try {

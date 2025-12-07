@@ -25,6 +25,7 @@ def add_feed():
     name = request.form.get('name')
     url = request.form.get('url')
     reliability = request.form.get('reliability')
+    country = request.form.get('country')
     type_tag = request.form.get('type_tag')
     
     if not name or not url:
@@ -42,10 +43,47 @@ def add_feed():
             flash('Selected type is not valid')
             return redirect(url_for('settings.feeds'))
 
-    new_feed = Feed(name=name, url=url, reliability=reliability, type_tag=type_tag)
+    new_feed = Feed(name=name, url=url, reliability=reliability, country=country, type_tag=type_tag)
     db.session.add(new_feed)
     db.session.commit()
     flash(f'Feed "{name}" added successfully')
+    return redirect(url_for('settings.feeds'))
+
+
+@bp.route('/feeds/update/<int:id>', methods=['POST'])
+@login_required
+def update_feed(id):
+    feed = Feed.query.get_or_404(id)
+
+    name = request.form.get('name')
+    url = request.form.get('url')
+    reliability = request.form.get('reliability')
+    country = request.form.get('country')
+    type_tag = request.form.get('type_tag')
+
+    if not name or not url:
+        flash('Name and URL are required')
+        return redirect(url_for('settings.feeds'))
+
+    if type_tag:
+        exists = StandardTag.query.filter_by(name=type_tag).first()
+        if not exists:
+            flash('Selected type is not valid')
+            return redirect(url_for('settings.feeds'))
+
+    duplicate = Feed.query.filter(Feed.url == url, Feed.id != id).first()
+    if duplicate:
+        flash('Another feed already uses that URL')
+        return redirect(url_for('settings.feeds'))
+
+    feed.name = name
+    feed.url = url
+    feed.reliability = reliability
+    feed.country = country
+    feed.type_tag = type_tag
+
+    db.session.commit()
+    flash(f'Feed "{feed.name}" updated successfully')
     return redirect(url_for('settings.feeds'))
 
 @bp.route('/feeds/delete/<int:id>')
