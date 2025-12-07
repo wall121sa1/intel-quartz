@@ -5,10 +5,26 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      FUSEKI_ENDPOINT: ${FUSEKI_ENDPOINT:-http://100.97.42.110/:3030/knowledge-graph/update}
+      FUSEKI_ENDPOINT: ${FUSEKI_ENDPOINT:-http://fuseki:3030/knowledge-graph/update}
       WATCH_DIR: ${WATCH_DIR:-/data}
       POLL_INTERVAL: ${POLL_INTERVAL:-60}
       BASE_URI: ${BASE_URI:-http://myvault.com/}
     volumes:
       - ./data:/data:ro
     restart: unless-stopped
+    depends_on:
+      - fuseki
+
+  fuseki:
+    image: stain/jena-fuseki:latest
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-changeme}
+    volumes:
+      - fuseki-data:/fuseki
+    ports:
+      - "3030:3030"
+
+volumes:
+  fuseki-data:
