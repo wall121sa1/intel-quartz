@@ -21,6 +21,7 @@ function assertNpmVersion() {
   const npmVersion = execSync("npm --version").toString().trim()
   if (!isAtLeast(npmVersion, required)) {
     console.error(`npm ${required} or newer is required. Found ${npmVersion}.`)
+    console.error("Please upgrade with: npm install -g npm@11.6.4")
     process.exit(1)
   }
   console.log(`npm version OK (found ${npmVersion}, requires >= ${required}).`)
