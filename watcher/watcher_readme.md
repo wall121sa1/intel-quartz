@@ -162,6 +162,8 @@ Use Settings > Locations to review ambiguous place names, pick a suggested coord
 Approved articles are saved to the vault_data/ directory (or your configured path) in the following structure:
 vault_data/{Source_Name}/{Year}/{Month}/{Day}/{Article_Title}.md
 
+If you're running the bundled Quartz frontend via `docker compose up quartz`, that container mounts the same `watcher-vault` volume at `docs/watcher_vault` so the published Markdown files are indexed and searchable automatically.
+
 ⚙️ Configuration
 
 The application is configured via config.py. You can override settings using Environment Variables (recommended for Docker/Production).

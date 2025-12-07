@@ -2,8 +2,6 @@ import { QuartzConfig } from "./quartz/cfg"
 import * as Plugin from "./quartz/plugins"
 import { FullSlug } from "./quartz/util/path"
 
-const baseUri = process.env.BASE_URI ?? "file:///data/"
-
 /**
  * Quartz 4 Configuration
  *
@@ -97,8 +95,8 @@ const config: QuartzConfig = {
       Plugin.FusekiExplorerPage({
         title: "Fuseki SPARQL explorer",
         slug: "fuseki-explorer" as FullSlug,
-        endpoint: "http://fuseki:3030/knowledge-graph/sparql",
-        baseUri,
+        endpoint: process.env.FUSEKI_ENDPOINT || "http://localhost:3030/knowledge-graph/sparql",
+        baseUri: process.env.BASE_URI || "http://myvault.com/",
       }),
       Plugin.MapPage({footerConfig: {
         disclaimer: "The information contained in this map is sensitive. Unauthorized access, use, or distribution is strictly prohibited.",

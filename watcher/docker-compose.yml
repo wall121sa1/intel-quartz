@@ -188,8 +188,11 @@ services:
       - "8080:8080"
     environment:
       # Uses the Fuseki instance defined in this stack
-      FUSEKI_ENDPOINT: ${FUSEKI_ENDPOINT:-http://fuseki:3030/knowledge-graph/sparql}
+      FUSEKI_ENDPOINT: ${FUSEKI_ENDPOINT:-http://localhost:3030/knowledge-graph/sparql}
       BASE_URI: ${BASE_URI:-http://myvault.com/}
+    volumes:
+      # Mount the shared vault that watcher writes Markdown into so Quartz can index those files
+      - watcher-vault:/usr/src/app/docs/watcher_vault:ro
     depends_on:
       - fuseki
     restart: unless-stopped

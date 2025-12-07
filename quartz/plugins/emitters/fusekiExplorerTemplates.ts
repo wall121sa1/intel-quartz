@@ -18,6 +18,7 @@ export function buildFusekiExplorerPage(title: string, endpoint: string, baseUri
       <p class="fuseki-badge">Fuseki live search</p>
       <h1>${title}</h1>
       <p class="fuseki-explorer__lead">Run focused SPARQL queries against your Jena Fuseki knowledge graph, discover which reports mention people and places, and project the results on an interactive map.</p>
+      <a class="fuseki-home" href="/">← Back to Quartz home</a>
     </header>
 
     <section class="fuseki-panel">
