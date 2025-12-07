@@ -5,6 +5,7 @@ from sqlalchemy import case, func, or_
 from app.services.manager import FeedManager
 from app.services.storage import StorageService
 from app.services.nlp import NLPService
+import json
 from datetime import datetime, timezone
 import dateutil.parser
 from threading import Thread
@@ -85,19 +86,52 @@ def dashboard():
     
     # Calculate Time Since Last Run
     last_run_str = SystemConfig.get('last_run_timestamp')
-    last_run_display = "Never"
-    
+    last_run_relative = "Never"
+    last_run_absolute = "Never"
+    last_run_timestamp = ""
+
     if last_run_str:
         try:
-            last_run = dateutil.parser.parse(last_run_str)
-            diff = datetime.utcnow() - last_run
+            last_run_dt = dateutil.parser.parse(last_run_str)
+            if last_run_dt.tzinfo:
+                last_run_dt = last_run_dt.astimezone(timezone.utc)
+            else:
+                last_run_dt = last_run_dt.replace(tzinfo=timezone.utc)
+
+            now_utc = datetime.now(timezone.utc)
+            diff = now_utc - last_run_dt
             minutes = int(diff.total_seconds() / 60)
-            
-            if minutes < 1: last_run_display = "Just now"
-            elif minutes < 60: last_run_display = f"{minutes} mins ago"
-            else: last_run_display = f"{int(minutes/60)} hours ago"
-        except:
-            last_run_display = "Unknown"
+
+            if minutes < 1:
+                last_run_relative = "Just now"
+            elif minutes < 60:
+                last_run_relative = f"{minutes} mins ago"
+            elif minutes < 1440:
+                last_run_relative = f"{int(minutes/60)} hours ago"
+            else:
+                last_run_relative = f"{int(minutes/1440)} days ago"
+
+            last_run_absolute = last_run_dt.strftime('%Y-%m-%d %H:%M:%S UTC')
+            last_run_timestamp = last_run_dt.isoformat()
+        except Exception:
+            last_run_relative = "Unknown"
+            last_run_absolute = last_run_str
+            last_run_timestamp = last_run_str
+
+    last_run_stats = None
+    last_run_info = None
+    raw_stats = SystemConfig.get('last_run_stats')
+    if raw_stats:
+        try:
+            last_run_stats = json.loads(raw_stats)
+            last_run_info = (
+                f"Last sync added {last_run_stats.get('added', 0)} new articles, "
+                f"skipped {last_run_stats.get('skipped', 0)} duplicates, "
+                f"and encountered {last_run_stats.get('errors', 0)} errors across "
+                f"{last_run_stats.get('feeds', 0)} feeds."
+            )
+        except (TypeError, ValueError):
+            last_run_stats = None
 
     queue_query = Article.query.join(Feed).filter(Article.status == 'PENDING')
 
@@ -216,8 +250,10 @@ def dashboard():
         'main/dashboard.html',
         stats=stats,
         queue=queue,
-        last_run=last_run_display,
-        last_run_raw=last_run_str,
+        last_run_relative=last_run_relative,
+        last_run_absolute=last_run_absolute,
+        last_run_raw=last_run_timestamp,
+        last_run_info=last_run_info,
         sources=sources,
         countries=countries,
         country_counts=country_counts,
