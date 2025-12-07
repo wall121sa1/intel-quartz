@@ -7,6 +7,7 @@ import re
 import urllib.parse
 from geopy.geocoders import Nominatim
 from countryinfo import CountryInfo
+from psycopg import connect
 
 # --- CONFIGURATION ---
 # We read these from Docker environment variables
@@ -22,6 +23,7 @@ FUSEKI_PASSWORD = os.getenv("FUSEKI_PASSWORD")
 WATCH_DIR = os.getenv("WATCH_DIR", "/data")
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "60"))
 BASE_URI = os.getenv("BASE_URI", "http://myvault.com/")
+HARVESTER_DATABASE_URL = os.getenv("HARVESTER_DATABASE_URL")
 if not BASE_URI.endswith("/"):
     BASE_URI = f"{BASE_URI}/"
 
@@ -30,8 +32,22 @@ geolocator = Nominatim(user_agent="obsidian_harvester_v2")
 def clean_id(text):
     return urllib.parse.quote(text.strip().replace(" ", "_").replace('"', '').replace("'", ""))
 
+
+def canonical_entity_id(text: str) -> str:
+    """Normalise an entity label into a consistent identifier across documents."""
+
+    slug = re.sub(r"[^a-z0-9]+", "-", text.strip().lower())
+    slug = slug.strip("-")
+    return clean_id(slug or text)
+
 def is_url(text):
     return re.match(r'^(http|https|www\.|ftp|[a-zA-Z0-9-]+\.[a-zA-Z]{2,})', text.strip())
+
+
+def literal(value):
+    """Safely wrap a Python value as an RDF literal."""
+
+    return json.dumps(str(value))
 
 def get_coordinates(location_name):
     if is_url(location_name):
@@ -146,9 +162,101 @@ def ensure_fuseki_dataset():
             error_detail = f" (status: {create_response.status_code}, body: {create_response.text[:200]})"
         print(f"Unable to create Fuseki dataset '{dataset_name}': {e}{error_detail}")
 
-def process_article(md_path, json_path):
+
+def init_tracking_db():
+    """Connect to PostgreSQL and ensure the processed-article table exists."""
+
+    if not HARVESTER_DATABASE_URL:
+        print("ℹ️ HARVESTER_DATABASE_URL not set; skipping processed-article tracking.")
+        return None
+
+    try:
+        conn = connect(HARVESTER_DATABASE_URL)
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS harvester_processed_articles (
+                    slug TEXT PRIMARY KEY,
+                    path TEXT NOT NULL,
+                    mtime DOUBLE PRECISION NOT NULL,
+                    processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            # Explicitly verify the table exists so setup failures surface before the worker loop runs.
+            cur.execute(
+                """
+                SELECT 1 FROM information_schema.tables
+                WHERE table_name = 'harvester_processed_articles'
+                """
+            )
+        print("🗄️ Connected to PostgreSQL for processed-article tracking.")
+        return conn
+    except Exception as e:
+        print(f"⚠️ Could not initialize PostgreSQL tracking: {e}")
+        return None
+
+def is_article_processed(slug, mtime, db_conn, processed_cache):
+    """Return True if the article has already been processed for the given mtime."""
+
+    cached_mtime = processed_cache.get(slug)
+    if cached_mtime and cached_mtime >= mtime:
+        return True
+
+    if not db_conn:
+        return False
+
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "SELECT mtime FROM harvester_processed_articles WHERE slug = %s",
+                (slug,),
+            )
+            row = cur.fetchone()
+            if row and row[0] >= mtime:
+                processed_cache[slug] = row[0]
+                return True
+    except Exception as e:
+        print(f"⚠️ Failed to check processed state for {slug}: {e}")
+    return False
+
+
+def mark_article_processed(slug, md_path, mtime, db_conn, processed_cache):
+    processed_cache[slug] = mtime
+
+    if not db_conn:
+        return
+
+    try:
+        with db_conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO harvester_processed_articles (slug, path, mtime)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (slug) DO UPDATE
+                SET path = EXCLUDED.path,
+                    mtime = EXCLUDED.mtime,
+                    processed_at = NOW()
+                """,
+                (slug, md_path, mtime),
+            )
+    except Exception as e:
+        print(f"⚠️ Failed to record processed state for {slug}: {e}")
+
+
+def process_article(md_path, json_path, db_conn, processed_cache):
     # Check if we have processed this recently to avoid spamming Fuseki (Optional optimization)
     # For now, we just process.
+
+    try:
+        mtime = os.path.getmtime(md_path)
+    except OSError:
+        return
+
+    slug = os.path.basename(md_path).replace(".md", "")
+    if is_article_processed(slug, mtime, db_conn, processed_cache):
+        return
 
     with open(md_path, 'r', encoding='utf-8') as f:
         try:
@@ -156,45 +264,87 @@ def process_article(md_path, json_path):
         except Exception:
             return  # Skip bad files
 
-    entities = {}
+    sidecar = {}
     if os.path.exists(json_path):
         with open(json_path, 'r', encoding='utf-8') as f:
             try:
-                entities = json.load(f)
+                sidecar = json.load(f)
             except Exception:
                 pass
 
-    # --- RDF Generation (Same as before) ---
-    triples = []
-    slug = os.path.basename(md_path).replace(".md", "")
     article_uri = f"<{BASE_URI}article/{clean_id(slug)}>"
 
-    title = post.metadata.get('title', slug).replace('"', '\\"')
-    triples.append(f'{article_uri} <{BASE_URI}prop/title> "{title}" .')
+    triples = []
+
+    # --- Article metadata ---
+    metadata = post.metadata or {}
+    title = metadata.get('title', slug)
+    triples.append(f'{article_uri} <{BASE_URI}prop/title> {literal(title)} .')
     triples.append(f'{article_uri} <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <{BASE_URI}class/Article> .')
 
-    entity_map = {"organizations": "Organization", "people": "Person", "locations": "Location"}
+    date_value = metadata.get('date') or metadata.get('added')
+    if date_value:
+        triples.append(f'{article_uri} <{BASE_URI}prop/date> {literal(date_value)} .')
+
+    link = metadata.get('link') or metadata.get('url')
+    if link:
+        triples.append(f'{article_uri} <{BASE_URI}prop/sourceUrl> {literal(link)} .')
+
+    for field in ['source', 'reliability', 'language', 'feed_type', 'country']:
+        if metadata.get(field):
+            triples.append(f'{article_uri} <{BASE_URI}prop/{field}> {literal(metadata[field])} .')
+
+    if metadata.get('tags'):
+        tags = metadata['tags']
+        if isinstance(tags, str):
+            tags = [t.strip() for t in tags.split(',') if t.strip()]
+        for tag in tags:
+            triples.append(f'{article_uri} <{BASE_URI}prop/tag> {literal(tag)} .')
+
+    # --- Entities and mentions ---
+    entity_map = {
+        "organizations": "Organization",
+        "people": "Person",
+        "locations": "Location",
+        "events": "Event",
+    }
+
+    # Merge locations from frontmatter with the sidecar so geospatial data is captured even if the JSON is missing.
+    merged_entities = {key: set() for key in entity_map}
+    for key in entity_map:
+        for source in [metadata.get(key, []), sidecar.get(key, [])]:
+            if isinstance(source, str):
+                source = [item.strip() for item in source.split(',') if item.strip()]
+            for item in source or []:
+                if item:
+                    merged_entities[key].add(item.strip())
 
     for category, class_name in entity_map.items():
-        if category in entities:
-            for item in entities[category]:
-                item = item.strip()
-                sanitized_item = item.replace('"', '')
-                entity_uri = f"<{BASE_URI}entity/{clean_id(item)}>"
-                triples.append(f'{article_uri} <{BASE_URI}prop/mentions> {entity_uri} .')
-                triples.append(
-                    f'{entity_uri} <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <{BASE_URI}class/{class_name}> .'
-                )
-                triples.append(f'{entity_uri} <http://www.w3.org/2000/01/rdf-schema#label> "{sanitized_item}" .')
+        for item in sorted(merged_entities[category]):
+            sanitized_item = item.replace('"', '')
+            entity_uri = f"<{BASE_URI}entity/{canonical_entity_id(item)}>"
+            triples.append(f'{article_uri} <{BASE_URI}prop/mentions> {entity_uri} .')
+            triples.append(f'{entity_uri} <{BASE_URI}prop/mentionedIn> {article_uri} .')
+            triples.append(
+                f'{entity_uri} <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <{BASE_URI}class/{class_name}> .'
+            )
+            triples.append(f'{entity_uri} <http://www.w3.org/2000/01/rdf-schema#label> {literal(sanitized_item)} .')
 
-                if category == "locations":
-                    coords = get_coordinates(item)
-                    if coords:
-                        triples.append(f'{entity_uri} <{BASE_URI}prop/lat> "{coords[0]}" .')
-                        triples.append(f'{entity_uri} <{BASE_URI}prop/lng> "{coords[1]}" .')
+            if category == "locations":
+                coords = get_coordinates(item)
+                if coords:
+                    triples.append(
+                        f'{entity_uri} <http://www.w3.org/2003/01/geo/wgs84_pos#lat> {literal(coords[0])} .'
+                    )
+                    triples.append(
+                        f'{entity_uri} <http://www.w3.org/2003/01/geo/wgs84_pos#long> {literal(coords[1])} .'
+                    )
 
     if triples:
-        update_query = f"DELETE {{ {article_uri} ?p ?o }} WHERE {{ {article_uri} ?p ?o }}; INSERT DATA {{ {' '.join(triples)} }}"
+        update_query = (
+            f"DELETE {{ {article_uri} ?p ?o }} WHERE {{ {article_uri} ?p ?o }}; "
+            f"INSERT DATA {{ {' '.join(triples)} }}"
+        )
         try:
             response = requests.post(
                 FUSEKI_ENDPOINT,
@@ -215,6 +365,9 @@ def process_article(md_path, json_path):
             if status in {401, 403}:
                 auth_hint = " Verify that FUSEKI_* credentials match the users configured in Fuseki's shiro.ini and that the dataset accepts updates."
             print(f"❌ Error syncing {slug}: {e}{error_detail}{auth_hint}")
+            return
+
+    mark_article_processed(slug, md_path, mtime, db_conn, processed_cache)
 
 def main():
     dataset_name = resolve_dataset_name()
@@ -222,6 +375,8 @@ def main():
     print(f"Fuseki auth mode: {fuseki_auth_description()}")
 
     ensure_fuseki_dataset()
+    db_conn = init_tracking_db()
+    processed_cache = {}
     print(f"🚀 Harvester running. Watching {WATCH_DIR} recursively...")
     while True:
         # Recursive Scan
@@ -231,7 +386,7 @@ def main():
                     md_path = os.path.join(root, filename)
                     # Look for sidecar in same folder
                     json_path = os.path.join(root, filename.replace(".md", ".entities.json"))
-                    process_article(md_path, json_path)
+                    process_article(md_path, json_path, db_conn, processed_cache)
 
         print(f"💤 Sleeping {POLL_INTERVAL}s...")
         time.sleep(POLL_INTERVAL)
