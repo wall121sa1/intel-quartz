@@ -11,13 +11,22 @@
     </div>
   <div class="col-md-6 text-end">
     <span class="text-muted me-3 small">
-        <i class="bi bi-clock-history"></i> Last Auto-Pull: <b>{{ last_run }}</b>
+        <i class="bi bi-clock-history"></i> Last Auto-Pull:
+        <b>{{ last_run_absolute }}</b>
+        <span class="text-muted">({{ last_run_relative }})</span>
     </span>
     <a href="{{ url_for('main.fetch_now') }}" class="btn btn-success">
         <i class="bi bi-cloud-download"></i> Fetch New
     </a>
 </div>
 </div>
+
+{% if last_run_info %}
+<div class="alert alert-info d-flex align-items-center" role="alert">
+    <i class="bi bi-info-circle-fill me-2"></i>
+    <div>{{ last_run_info }}</div>
+</div>
+{% endif %}
 
 <!-- Stats Cards -->
 <div class="row text-center mb-4">

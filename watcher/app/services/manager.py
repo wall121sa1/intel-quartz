@@ -1,4 +1,5 @@
-from datetime import datetime
+import json
+from datetime import datetime, timezone
 
 from flask import current_app
 
@@ -113,6 +114,13 @@ class FeedManager:
             # Ensure we don't carry any uncommitted state into the next feed
             db.session.commit()
 
-        SystemConfig.set('last_run_timestamp', datetime.utcnow().isoformat())
+        SystemConfig.set('last_run_timestamp', datetime.now(timezone.utc).isoformat())
+        SystemConfig.set(
+            'last_run_stats',
+            json.dumps({
+                **stats,
+                'feeds': len(feeds)
+            })
+        )
 
         return stats

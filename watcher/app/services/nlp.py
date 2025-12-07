@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import socket
 from datetime import datetime, timedelta
 
@@ -12,6 +13,43 @@ from app.models import CustomEntity
 
 # Initialize logger
 logger = logging.getLogger(__name__)
+
+
+def _collapse_whitespace(value: str | None) -> str:
+    """Normalize whitespace so tags don't span multiple lines."""
+
+    if not value:
+        return ""
+
+    return " ".join(str(value).split())
+
+
+def _sanitize_entities(entities: dict | None) -> dict:
+    """Collapse whitespace and deduplicate entity lists from NER results."""
+
+    if not isinstance(entities, dict):
+        return {"orgs": [], "people": [], "locs": [], "events": [], "tags": []}
+
+    cleaned = {}
+    for key in ("orgs", "people", "locs", "events", "tags"):
+        values = entities.get(key, []) or []
+        normalized = {_collapse_whitespace(v) for v in values if _collapse_whitespace(v)}
+        cleaned[key] = sorted(normalized)
+
+    return cleaned
+
+
+def _sanitize_wikilinks(content: str | None) -> str:
+    """Collapse whitespace within wikilinks to avoid multi-line tags."""
+
+    if not content:
+        return ""
+
+    def _replace(match: re.Match[str]) -> str:
+        inner = _collapse_whitespace(match.group(1))
+        return f"[[{inner}]]" if inner else match.group(0)
+
+    return re.sub(r"\[\[(.+?)\]\]", _replace, content, flags=re.DOTALL)
 
 def _load_remote_config():
     """Read remote NER configuration from the environment."""
@@ -149,7 +187,15 @@ class NLPService:
                 data = response.json()
                 _remote_failures = 0
                 if "content_with_links" in data and "entities" in data:
-                    return data
+                    sanitized_entities = _sanitize_entities(data.get("entities"))
+                    sanitized_content = _sanitize_wikilinks(
+                        data.get("content_with_links") or text
+                    )
+
+                    return {
+                        "entities": sanitized_entities,
+                        "content_with_links": sanitized_content or text,
+                    }
 
                 message = "NLP: Remote response missing expected keys; returning unprocessed content"
                 logger.error(message)

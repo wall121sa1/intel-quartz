@@ -26,6 +26,19 @@ logger = logging.getLogger("ner_service")
 logging.basicConfig(level=logging.INFO)
 
 
+def _normalize_entity_text(text: str) -> str:
+    """Collapse whitespace inside entity text to keep tags single-line."""
+
+    return " ".join(text.split())
+
+
+def _entity_regex_pattern(text: str) -> str:
+    """Build a whitespace-tolerant regex for the original entity text."""
+
+    parts = [re.escape(part) for part in text.split() if part]
+    return r"\s+".join(parts)
+
+
 class ProcessRequest(BaseModel):
     text: str
 
@@ -163,19 +176,24 @@ def process(req: ProcessRequest, request: Request) -> Dict[str, Any]:
     tags: List[str] = []
 
     for ent in doc.ents:
+        normalized = _normalize_entity_text(ent.text)
+        if not normalized:
+            continue
+
         if ent.label_ in ("ORG",):
-            orgs.append(ent.text)
+            orgs.append(normalized)
         elif ent.label_ in ("PERSON",):
-            people.append(ent.text)
+            people.append(normalized)
         elif ent.label_ in ("GPE", "LOC"):
-            locs.append(ent.text)
+            locs.append(normalized)
         elif ent.label_ in ("EVENT",):
-            events.append(ent.text)
+            events.append(normalized)
 
     lower_text = req.text.lower()
     for tag in rules_snapshot.get("tags", []):
-        if tag.lower() in lower_text:
-            tags.append(tag)
+        normalized_tag = _normalize_entity_text(tag)
+        if normalized_tag and normalized_tag.lower() in lower_text:
+            tags.append(normalized_tag)
 
     allowed_labels = {"ORG", "PERSON", "GPE", "LOC", "EVENT"}
     annotated = req.text
@@ -183,9 +201,13 @@ def process(req: ProcessRequest, request: Request) -> Dict[str, Any]:
         if ent.label_ not in allowed_labels:
             continue
 
+        normalized = _normalize_entity_text(ent.text)
+        if not normalized:
+            continue
+
         # Avoid repeatedly wrapping text that is already wikilinked
-        pattern = rf"(?<!\[\[){re.escape(ent.text)}(?!\]\])"
-        annotated = re.sub(pattern, f"[[{ent.text}]]", annotated, count=1)
+        pattern = rf"(?<!\[\[){_entity_regex_pattern(ent.text)}(?!\]\])"
+        annotated = re.sub(pattern, f"[[{normalized}]]", annotated, count=1, flags=re.DOTALL)
 
     return {
         "text": req.text,

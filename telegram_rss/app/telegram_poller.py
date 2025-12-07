@@ -139,24 +139,22 @@ async def _poll_bot_channels(client: TelegramClient, bot_id: int, config: AppCon
     """Poll all channels assigned to a given bot_id."""
     db: Session = get_session()
     try:
-        has_active_feed = (
-            db.query(Feed.id)
-            .filter(
-                Feed.language == Channel.language,
-                Feed.topic == sa.any_(Channel.topics),
-            )
-            .exists()
+    active_feed_exists = sa.exists(
+        sa.select(Feed.id).where(
+            Feed.language == Channel.language,
+            Channel.topics.any(Feed.topic),
         )
+    )
 
-        channels = (
-            db.query(Channel)
-            .filter(
-                Channel.bot_id == bot_id,
-                Channel.enabled.is_(True),
-                has_active_feed,
-            )
-            .all()
+    channels = (
+        db.query(Channel)
+        .filter(
+            Channel.bot_id == bot_id,
+            Channel.enabled.is_(True),
+            active_feed_exists,
         )
+        .all()
+    )
 
         if not channels:
             print(
