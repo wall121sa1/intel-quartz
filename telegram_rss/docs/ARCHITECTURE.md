@@ -29,8 +29,9 @@ The FastAPI lifespan handler loads configuration, initializes the database engin
 ## Message ingestion
 1. Poller bootstraps bot rows from configuration (`_sync_bots_from_config`).
 2. Each bot runs its own Telethon client, fetching channels assigned to the bot (`Channel.bot_id`).
-3. For each channel, `_poll_single_channel` ensures membership, iterates recent messages newer than `last_msg_id`, and stores unseen messages.
-4. Channels track `last_msg_id` to resume efficiently between polling cycles.
+3. For each channel with an active feed (language/topic present in `feeds`), `_poll_single_channel` ensures membership, iterates recent messages newer than `last_msg_id`, and stores unseen messages.
+4. Channels are polled with a short configurable delay (`polling.per_channel_delay_seconds`) between each request to stay within Telegram API rate limits.
+5. Channels track `last_msg_id` to resume efficiently between polling cycles.
 
 ## Releasing feed items
 1. On each cycle (configured by `staging.release_interval_minutes`), all feeds are scanned.

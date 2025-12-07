@@ -4,6 +4,7 @@ from datetime import timezone
 from typing import Dict, List
 from .utils import telethon_to_safe_json
 
+import sqlalchemy as sa
 from sqlalchemy.orm import Session
 from telethon import TelegramClient
 
@@ -11,7 +12,7 @@ from .config import AppConfig
 from .db import get_session
 from telethon.tl.types import Channel as TLChannel, Chat as TLChat, User as TLUser
 
-from .models import Bot as BotModel, Channel, ChannelNameHistory, Message
+from .models import Bot as BotModel, Channel, ChannelNameHistory, Feed, Message
 
 SESSION_DIR = Path("/app/sessions")
 SESSION_DIR.mkdir(parents=True, exist_ok=True)
@@ -138,17 +139,34 @@ async def _poll_bot_channels(client: TelegramClient, bot_id: int, config: AppCon
     """Poll all channels assigned to a given bot_id."""
     db: Session = get_session()
     try:
-        channels = (
-            db.query(Channel)
-            .filter(
-                Channel.bot_id == bot_id,
-                Channel.enabled.is_(True),
-            )
-            .all()
+    active_feed_exists = sa.exists(
+        sa.select(Feed.id).where(
+            Feed.language == Channel.language,
+            Channel.topics.any(Feed.topic),
         )
+    )
 
-        for ch in channels:
+    channels = (
+        db.query(Channel)
+        .filter(
+            Channel.bot_id == bot_id,
+            Channel.enabled.is_(True),
+            active_feed_exists,
+        )
+        .all()
+    )
+
+        if not channels:
+            print(
+                "[telegram_poller] No channels with active RSS feeds assigned to "
+                f"bot {bot_id}; skipping this cycle."
+            )
+            return
+
+        for idx, ch in enumerate(channels):
             await _poll_single_channel(db, client, ch, config)
+            if idx < len(channels) - 1:
+                await asyncio.sleep(config.polling.per_channel_delay_seconds)
     finally:
         db.close()
 

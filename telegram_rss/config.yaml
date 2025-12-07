@@ -5,6 +5,7 @@ database:
 polling:
   interval_seconds: 20
   batch_size: 100
+  per_channel_delay_seconds: 1
 
 staging:
   release_interval_minutes: 10
