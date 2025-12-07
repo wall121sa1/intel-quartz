@@ -60,14 +60,39 @@
 <form method="get" class="card mb-3">
     <div class="card-body">
         <div class="row g-3 align-items-end">
-            <div class="col-md-3">
-                <label class="form-label">Source</label>
+            <div class="col-md-4">
+                <label class="form-label">Source Filters</label>
                 <select class="form-select ui fluid search selection dropdown" name="source" id="sourceDropdown" multiple>
-                    {% for source in sources %}
-                        <option value="{{ source.id }}" {% if filter_values.sources and (source.id|string) in filter_values.sources %}selected{% endif %}>{{ source.name }}</option>
-                    {% endfor %}
+                    {% if countries %}
+                    <optgroup label="Countries">
+                        {% for country in countries %}
+                            <option value="country:{{ country }}" {% if 'country:' ~ country in filter_values.sources %}selected{% endif %}>
+                                Country: {{ country }} ({{ country_counts[country] }} feeds)
+                            </option>
+                        {% endfor %}
+                    </optgroup>
+                    {% endif %}
+                    {% if type_tags %}
+                    <optgroup label="Types">
+                        {% for tag in type_tags %}
+                            <option value="type:{{ tag }}" {% if 'type:' ~ tag in filter_values.sources %}selected{% endif %}>
+                                Type: {{ tag }} ({{ type_counts[tag] }} feeds)
+                            </option>
+                        {% endfor %}
+                    </optgroup>
+                    {% endif %}
+                    <optgroup label="Individual Sources">
+                        {% for source in sources %}
+                            <option value="source:{{ source.id }}" {% if 'source:' ~ source.id in filter_values.sources %}selected{% endif %}>
+                                {{ source.name }}
+                                {% if source.country or source.type_tag %}
+                                    ({{ source.country or '—' }}{% if source.country and source.type_tag %} · {% endif %}{{ source.type_tag or '—' }})
+                                {% endif %}
+                            </option>
+                        {% endfor %}
+                    </optgroup>
                 </select>
-                <div class="form-text">Search and select one or more sources.</div>
+                <div class="form-text">Select countries, types, or individual feeds (selections combine).</div>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Reliability</label>
@@ -78,18 +103,27 @@
                 </select>
                 <div class="form-text">Choose one or more confidence levels.</div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label">Published After (UTC)</label>
                 <input type="datetime-local" name="start" class="form-control" value="{{ filter_values.start }}">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label">Published Before (UTC)</label>
                 <input type="datetime-local" name="end" class="form-control" value="{{ filter_values.end }}">
+            </div>
+            <div class="col-md-1 text-center">
+                <label class="form-label">Noise</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="on" id="hideTelegram" name="hide_telegram" {% if filter_values.hide_telegram %}checked{% endif %}>
+                    <label class="form-check-label small" for="hideTelegram">
+                        Hide Telegram
+                    </label>
+                </div>
             </div>
         </div>
         <div class="text-end mt-3">
             <button type="submit" class="btn btn-primary me-2">Apply Filters</button>
-            <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary">Clear</a>
+            <a href="{{ url_for('main.dashboard', reset=1) }}" class="btn btn-outline-secondary">Clear</a>
         </div>
     </div>
 </form>

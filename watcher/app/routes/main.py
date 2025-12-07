@@ -1,7 +1,7 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify, session
 from flask_login import login_required
 from app.models import db, Article, CustomEntity, Feed, SystemConfig
-from sqlalchemy import case, func
+from sqlalchemy import case, func, or_
 from app.services.manager import FeedManager
 from app.services.storage import StorageService
 from app.services.nlp import NLPService
@@ -135,23 +135,79 @@ def dashboard():
 
     queue_query = Article.query.join(Feed).filter(Article.status == 'PENDING')
 
-    selected_sources = [src for src in request.args.getlist('source') if src]
-    selected_reliabilities = [rel for rel in request.args.getlist('reliability') if rel]
-    start_raw = request.args.get('start', '')
-    end_raw = request.args.get('end', '')
+    stored_filters = session.get('dashboard_filters', {})
+    has_query_filters = any(
+        key in request.args
+        for key in ['source', 'reliability', 'start', 'end', 'hide_telegram', 'reset']
+    )
 
-    if selected_sources:
-        valid_sources = []
-        for raw_source in selected_sources:
+    if request.args.get('reset') == '1':
+        session.pop('dashboard_filters', None)
+        return redirect(url_for('main.dashboard'))
+
+    raw_sources = [src for src in request.args.getlist('source') if src] if has_query_filters else stored_filters.get('sources', [])
+    selected_sources = []
+    for src in raw_sources:
+        if ',' in src:
+            selected_sources.extend([part for part in src.split(',') if part])
+        else:
+            selected_sources.append(src)
+
+    selected_reliabilities = (
+        [rel for rel in request.args.getlist('reliability') if rel]
+        if has_query_filters else stored_filters.get('reliabilities', [])
+    )
+    start_raw = request.args.get('start', '') if has_query_filters else stored_filters.get('start', '')
+    end_raw = request.args.get('end', '') if has_query_filters else stored_filters.get('end', '')
+    hide_telegram = (
+        request.args.get('hide_telegram') == 'on'
+        if has_query_filters else stored_filters.get('hide_telegram', False)
+    )
+
+    session['dashboard_filters'] = {
+        'sources': selected_sources,
+        'reliabilities': selected_reliabilities,
+        'start': start_raw,
+        'end': end_raw,
+        'hide_telegram': hide_telegram,
+    }
+
+    source_ids = []
+    country_filters = []
+    type_filters = []
+
+    for raw_source in selected_sources:
+        if raw_source.startswith('country:'):
+            country_filters.append(raw_source.split(':', 1)[1])
+        elif raw_source.startswith('type:'):
+            type_filters.append(raw_source.split(':', 1)[1])
+        elif raw_source.startswith('source:'):
             try:
-                valid_sources.append(int(raw_source))
+                source_ids.append(int(raw_source.split(':', 1)[1]))
             except ValueError:
                 flash('Invalid source filter provided')
-        if valid_sources:
-            queue_query = queue_query.filter(Feed.id.in_(valid_sources))
+        else:
+            try:
+                source_ids.append(int(raw_source))
+            except ValueError:
+                flash('Invalid source filter provided')
+
+    if source_ids:
+        queue_query = queue_query.filter(Feed.id.in_(source_ids))
+    if country_filters:
+        queue_query = queue_query.filter(Feed.country.in_(country_filters))
+    if type_filters:
+        queue_query = queue_query.filter(Feed.type_tag.in_(type_filters))
 
     if selected_reliabilities:
         queue_query = queue_query.filter(Feed.reliability.in_(selected_reliabilities))
+
+    if hide_telegram:
+        queue_query = queue_query.filter(~or_(
+            func.lower(Feed.url).like('%telegram%'),
+            func.lower(Feed.url).like('%t.me%'),
+            func.lower(Feed.name).like('%telegram%')
+        ))
 
     def parse_to_utc(value):
         if not value:
@@ -176,13 +232,18 @@ def dashboard():
     queue = queue_query.order_by(Article.pub_date.desc()).limit(100).all()
 
     sources = Feed.query.order_by(Feed.name).all()
+    countries = sorted({feed.country for feed in sources if feed.country})
+    country_counts = {country: len([feed for feed in sources if feed.country == country]) for country in countries}
+    type_tags = sorted({feed.type_tag for feed in sources if feed.type_tag})
+    type_counts = {tag: len([feed for feed in sources if feed.type_tag == tag]) for tag in type_tags}
     reliabilities = sorted({feed.reliability for feed in sources if feed.reliability})
 
     filter_values = {
         'sources': selected_sources,
         'reliabilities': selected_reliabilities,
         'start': start_raw,
-        'end': end_raw
+        'end': end_raw,
+        'hide_telegram': hide_telegram,
     }
 
     return render_template(
@@ -194,6 +255,10 @@ def dashboard():
         last_run_raw=last_run_timestamp,
         last_run_info=last_run_info,
         sources=sources,
+        countries=countries,
+        country_counts=country_counts,
+        type_tags=type_tags,
+        type_counts=type_counts,
         reliabilities=reliabilities,
         filter_values=filter_values
     )
