@@ -10,7 +10,8 @@ from countryinfo import CountryInfo
 
 # --- CONFIGURATION ---
 # We read these from Docker environment variables
-FUSEKI_DATASET_NAME = os.getenv("FUSEKI_DATASET_NAME", "offchain-knowledge")
+# Keep the dataset name aligned with the default Fuseki endpoint so initial sync can create it automatically.
+FUSEKI_DATASET_NAME = os.getenv("FUSEKI_DATASET_NAME", "knowledge-graph").strip()
 FUSEKI_ENDPOINT = os.getenv(
     "FUSEKI_ENDPOINT", f"http://localhost:3030/{FUSEKI_DATASET_NAME}/update"
 )
@@ -83,6 +84,14 @@ def fuseki_update_auth():
     if FUSEKI_ADMIN_PASSWORD:
         return (FUSEKI_ADMIN_USER, FUSEKI_ADMIN_PASSWORD)
     return None
+
+
+def fuseki_auth_description():
+    if FUSEKI_PASSWORD and (FUSEKI_USER or FUSEKI_ADMIN_USER):
+        return f"basic auth as '{FUSEKI_USER or FUSEKI_ADMIN_USER}' with FUSEKI_PASSWORD set"
+    if FUSEKI_ADMIN_PASSWORD:
+        return f"basic auth as admin '{FUSEKI_ADMIN_USER}' with FUSEKI_ADMIN_PASSWORD set"
+    return "no authentication configured"
 
 
 def ensure_fuseki_dataset():
@@ -198,11 +207,20 @@ def process_article(md_path, json_path):
             print(f"✅ Synced: {slug}")
         except Exception as e:
             error_detail = ""
+            status = None
             if 'response' in locals() and response is not None:
+                status = response.status_code
                 error_detail = f" (status: {response.status_code}, body: {response.text[:200]})"
-            print(f"❌ Error syncing {slug}: {e}{error_detail}")
+            auth_hint = ""
+            if status in {401, 403}:
+                auth_hint = " Verify that FUSEKI_* credentials match the users configured in Fuseki's shiro.ini and that the dataset accepts updates."
+            print(f"❌ Error syncing {slug}: {e}{error_detail}{auth_hint}")
 
 def main():
+    dataset_name = resolve_dataset_name()
+    print(f"Targeting Fuseki dataset '{dataset_name}' at {FUSEKI_ENDPOINT}")
+    print(f"Fuseki auth mode: {fuseki_auth_description()}")
+
     ensure_fuseki_dataset()
     print(f"🚀 Harvester running. Watching {WATCH_DIR} recursively...")
     while True:
