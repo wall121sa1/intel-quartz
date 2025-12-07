@@ -1,9 +1,11 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify
 from flask_login import login_required
 from app.models import db, Article, CustomEntity, Feed, SystemConfig
+from sqlalchemy import case, func
 from app.services.manager import FeedManager
 from app.services.storage import StorageService
 from app.services.nlp import NLPService
+import json
 from datetime import datetime, timezone
 import dateutil.parser
 from threading import Thread
@@ -44,6 +46,33 @@ def learn_entities(form_data):
         NLPService.reload_model()
         print(f"Feedback Loop: Learned {new_rules_count} new entities.")
 
+
+def article_type_metrics():
+    """Summarize article counts grouped by feed type."""
+    rows = (
+        db.session.query(
+            func.coalesce(Feed.type_tag, 'Uncategorized').label('type_tag'),
+            func.count(Article.id).label('total'),
+            func.sum(case((Article.status == 'APPROVED', 1), else_=0)).label('approved'),
+            func.sum(case((Article.status == 'PENDING', 1), else_=0)).label('pending'),
+            func.sum(case((Article.status == 'REJECTED', 1), else_=0)).label('rejected'),
+        )
+        .join(Article, Article.feed_id == Feed.id)
+        .group_by(Feed.type_tag)
+        .all()
+    )
+
+    return [
+        {
+            'type_tag': row.type_tag or 'Uncategorized',
+            'total': int(row.total or 0),
+            'approved': int(row.approved or 0),
+            'pending': int(row.pending or 0),
+            'rejected': int(row.rejected or 0),
+        }
+        for row in rows
+    ]
+
 # --- ROUTES ---
 
 @bp.route('/')
@@ -57,35 +86,72 @@ def dashboard():
     
     # Calculate Time Since Last Run
     last_run_str = SystemConfig.get('last_run_timestamp')
-    last_run_display = "Never"
-    
+    last_run_relative = "Never"
+    last_run_absolute = "Never"
+    last_run_timestamp = ""
+
     if last_run_str:
         try:
-            last_run = dateutil.parser.parse(last_run_str)
-            diff = datetime.utcnow() - last_run
+            last_run_dt = dateutil.parser.parse(last_run_str)
+            if last_run_dt.tzinfo:
+                last_run_dt = last_run_dt.astimezone(timezone.utc)
+            else:
+                last_run_dt = last_run_dt.replace(tzinfo=timezone.utc)
+
+            now_utc = datetime.now(timezone.utc)
+            diff = now_utc - last_run_dt
             minutes = int(diff.total_seconds() / 60)
-            
-            if minutes < 1: last_run_display = "Just now"
-            elif minutes < 60: last_run_display = f"{minutes} mins ago"
-            else: last_run_display = f"{int(minutes/60)} hours ago"
-        except:
-            last_run_display = "Unknown"
+
+            if minutes < 1:
+                last_run_relative = "Just now"
+            elif minutes < 60:
+                last_run_relative = f"{minutes} mins ago"
+            elif minutes < 1440:
+                last_run_relative = f"{int(minutes/60)} hours ago"
+            else:
+                last_run_relative = f"{int(minutes/1440)} days ago"
+
+            last_run_absolute = last_run_dt.strftime('%Y-%m-%d %H:%M:%S UTC')
+            last_run_timestamp = last_run_dt.isoformat()
+        except Exception:
+            last_run_relative = "Unknown"
+            last_run_absolute = last_run_str
+            last_run_timestamp = last_run_str
+
+    last_run_stats = None
+    last_run_info = None
+    raw_stats = SystemConfig.get('last_run_stats')
+    if raw_stats:
+        try:
+            last_run_stats = json.loads(raw_stats)
+            last_run_info = (
+                f"Last sync added {last_run_stats.get('added', 0)} new articles, "
+                f"skipped {last_run_stats.get('skipped', 0)} duplicates, "
+                f"and encountered {last_run_stats.get('errors', 0)} errors across "
+                f"{last_run_stats.get('feeds', 0)} feeds."
+            )
+        except (TypeError, ValueError):
+            last_run_stats = None
 
     queue_query = Article.query.join(Feed).filter(Article.status == 'PENDING')
 
-    selected_source = request.args.get('source', '')
-    selected_reliability = request.args.get('reliability', '')
+    selected_sources = [src for src in request.args.getlist('source') if src]
+    selected_reliabilities = [rel for rel in request.args.getlist('reliability') if rel]
     start_raw = request.args.get('start', '')
     end_raw = request.args.get('end', '')
 
-    if selected_source:
-        try:
-            queue_query = queue_query.filter(Feed.id == int(selected_source))
-        except ValueError:
-            flash('Invalid source filter provided')
+    if selected_sources:
+        valid_sources = []
+        for raw_source in selected_sources:
+            try:
+                valid_sources.append(int(raw_source))
+            except ValueError:
+                flash('Invalid source filter provided')
+        if valid_sources:
+            queue_query = queue_query.filter(Feed.id.in_(valid_sources))
 
-    if selected_reliability:
-        queue_query = queue_query.filter(Feed.reliability == selected_reliability)
+    if selected_reliabilities:
+        queue_query = queue_query.filter(Feed.reliability.in_(selected_reliabilities))
 
     def parse_to_utc(value):
         if not value:
@@ -113,8 +179,8 @@ def dashboard():
     reliabilities = sorted({feed.reliability for feed in sources if feed.reliability})
 
     filter_values = {
-        'source': selected_source,
-        'reliability': selected_reliability,
+        'sources': selected_sources,
+        'reliabilities': selected_reliabilities,
         'start': start_raw,
         'end': end_raw
     }
@@ -123,7 +189,10 @@ def dashboard():
         'main/dashboard.html',
         stats=stats,
         queue=queue,
-        last_run=last_run_display,
+        last_run_relative=last_run_relative,
+        last_run_absolute=last_run_absolute,
+        last_run_raw=last_run_timestamp,
+        last_run_info=last_run_info,
         sources=sources,
         reliabilities=reliabilities,
         filter_values=filter_values
@@ -181,7 +250,8 @@ def approve_article(id):
             article,
             article.source.name,
             article.source.reliability,
-            article.source.type_tag
+            article.source.type_tag,
+            article.source.country
         )
         article.status = 'APPROVED'
         db.session.commit()
@@ -239,3 +309,26 @@ def history():
     approved = Article.query.filter_by(status='APPROVED').order_by(Article.added_date.desc()).limit(50).all()
     rejected = Article.query.filter_by(status='REJECTED').order_by(Article.added_date.desc()).limit(50).all()
     return render_template('main/history.html', approved=approved, rejected=rejected)
+
+
+@bp.route('/statistics')
+@login_required
+def statistics():
+    metrics = article_type_metrics()
+    return render_template('main/statistics.html', metrics=metrics)
+
+
+@bp.route('/statistics/data')
+@login_required
+def statistics_data():
+    return jsonify(article_type_metrics())
+
+
+@bp.route('/queue/status')
+@login_required
+def queue_status():
+    """Return queue metadata so the UI can detect when new articles arrive."""
+    return jsonify({
+        'pending_count': Article.query.filter_by(status='PENDING').count(),
+        'last_run_timestamp': SystemConfig.get('last_run_timestamp') or ''
+    })

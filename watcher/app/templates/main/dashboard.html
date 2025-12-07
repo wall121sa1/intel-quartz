@@ -7,13 +7,22 @@
     </div>
   <div class="col-md-6 text-end">
     <span class="text-muted me-3 small">
-        <i class="bi bi-clock-history"></i> Last Auto-Pull: <b>{{ last_run }}</b>
+        <i class="bi bi-clock-history"></i> Last Auto-Pull:
+        <b>{{ last_run_absolute }}</b>
+        <span class="text-muted">({{ last_run_relative }})</span>
     </span>
     <a href="{{ url_for('main.fetch_now') }}" class="btn btn-success">
         <i class="bi bi-cloud-download"></i> Fetch New
     </a>
 </div>
 </div>
+
+{% if last_run_info %}
+<div class="alert alert-info d-flex align-items-center" role="alert">
+    <i class="bi bi-info-circle-fill me-2"></i>
+    <div>{{ last_run_info }}</div>
+</div>
+{% endif %}
 
 <!-- Stats Cards -->
 <div class="row text-center mb-4">
@@ -49,21 +58,21 @@
         <div class="row g-3 align-items-end">
             <div class="col-md-3">
                 <label class="form-label">Source</label>
-                <select class="form-select" name="source">
-                    <option value="">All sources</option>
+                <select class="form-select" name="source" multiple size="5">
                     {% for source in sources %}
-                        <option value="{{ source.id }}" {% if filter_values.source == source.id|string %}selected{% endif %}>{{ source.name }}</option>
+                        <option value="{{ source.id }}" {% if filter_values.sources and (source.id|string) in filter_values.sources %}selected{% endif %}>{{ source.name }}</option>
                     {% endfor %}
                 </select>
+                <div class="form-text">Hold Ctrl/Cmd to select multiple sources.</div>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Reliability</label>
-                <select class="form-select" name="reliability">
-                    <option value="">All levels</option>
+                <select class="form-select" name="reliability" multiple size="3">
                     {% for reliability in reliabilities %}
-                        <option value="{{ reliability }}" {% if filter_values.reliability == reliability %}selected{% endif %}>{{ reliability }}</option>
+                        <option value="{{ reliability }}" {% if filter_values.reliabilities and reliability in filter_values.reliabilities %}selected{% endif %}>{{ reliability }}</option>
                     {% endfor %}
                 </select>
+                <div class="form-text">Choose one or more confidence levels.</div>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Published After (UTC)</label>
@@ -99,6 +108,7 @@
                     <tr>
                         <th style="width: 40px;"></th>
                         <th>Source</th>
+                        <th>Country</th>
                         <th>Reliability</th>
                         <th>Title</th>
                         <th>Date (UTC)</th>
@@ -112,6 +122,7 @@
                             <input type="checkbox" name="article_ids" value="{{ article.id }}" class="form-check-input item-check">
                         </td>
                         <td class="align-middle"><span class="badge bg-info text-dark">{{ article.source.name }}</span></td>
+                        <td class="align-middle">{{ article.source.country or '—' }}</td>
                         <td class="align-middle">
                             <span class="badge bg-light text-dark border">{{ article.source.reliability or 'N/A' }}</span>
                         </td>
@@ -130,7 +141,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="5" class="text-center py-5 text-muted">
+                        <td colspan="7" class="text-center py-5 text-muted">
                             <i class="bi bi-check-circle fs-1 d-block mb-2"></i>
                             No new articles. You are all caught up!
                         </td>
@@ -143,6 +154,32 @@
 </form>
 
 <script>
+    const queueStatusUrl = "{{ url_for('main.queue_status') }}";
+    const initialLastRun = {{ last_run_raw|tojson }};
+    const initialPendingCount = {{ stats.new }};
+    const pollIntervalMs = 15000;
+
+    async function checkForUpdates() {
+        try {
+            const response = await fetch(queueStatusUrl, { cache: 'no-store' });
+            if (!response.ok) {
+                return;
+            }
+
+            const data = await response.json();
+            const hasNewRun = data.last_run_timestamp && data.last_run_timestamp !== initialLastRun;
+            const hasMorePending = typeof data.pending_count === 'number' && data.pending_count > initialPendingCount;
+
+            if (hasNewRun || hasMorePending) {
+                window.location.reload();
+            }
+        } catch (err) {
+            console.error('Failed to poll queue status', err);
+        }
+    }
+
+    setInterval(checkForUpdates, pollIntervalMs);
+
     // Select All Logic
     document.getElementById('selectAll').addEventListener('change', function() {
         const checkboxes = document.querySelectorAll('.item-check');

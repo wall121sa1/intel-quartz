@@ -27,6 +27,10 @@
                         </select>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label">Country</label>
+                        <input type="text" name="country" class="form-control" placeholder="e.g. United Kingdom">
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">Source Type</label>
                         <input type="hidden" name="type_tag" id="typeTagInput">
                         <div class="d-flex flex-wrap gap-2" id="typeTagCloud">
@@ -54,18 +58,42 @@
                             <th>Name</th>
                             <th>Reliability</th>
                             <th>Type</th>
+                            <th>Country</th>
                             <th>URL</th>
                             <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for feed in feeds %}
+                        <form id="feed-{{ feed.id }}-form" action="{{ url_for('settings.update_feed', id=feed.id) }}" method="post"></form>
                         <tr>
-                            <td>{{ feed.name }}</td>
-                            <td>{{ feed.reliability }}</td>
-                            <td>{{ feed.type_tag or '—' }}</td>
-                            <td class="text-truncate" style="max-width: 150px;">{{ feed.url }}</td>
                             <td>
+                                <input form="feed-{{ feed.id }}-form" type="text" name="name" class="form-control form-control-sm" value="{{ feed.name }}" required>
+                            </td>
+                            <td>
+                                <select form="feed-{{ feed.id }}-form" name="reliability" class="form-select form-select-sm">
+                                    <option value="">—</option>
+                                    <option value="High" {% if feed.reliability == 'High' %}selected{% endif %}>High</option>
+                                    <option value="Medium" {% if feed.reliability == 'Medium' %}selected{% endif %}>Medium</option>
+                                    <option value="Low" {% if feed.reliability == 'Low' %}selected{% endif %}>Low</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select form="feed-{{ feed.id }}-form" name="type_tag" class="form-select form-select-sm">
+                                    <option value="">—</option>
+                                    {% for tag in tags %}
+                                        <option value="{{ tag.name }}" {% if feed.type_tag == tag.name %}selected{% endif %}>{{ tag.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <input form="feed-{{ feed.id }}-form" type="text" name="country" class="form-control form-control-sm" placeholder="Add country" value="{{ feed.country or '' }}">
+                            </td>
+                            <td class="text-truncate" style="max-width: 220px;">
+                                <input form="feed-{{ feed.id }}-form" type="url" name="url" class="form-control form-control-sm" value="{{ feed.url }}" required>
+                            </td>
+                            <td class="text-nowrap">
+                                <button form="feed-{{ feed.id }}-form" type="submit" class="btn btn-sm btn-primary me-1">Save</button>
                                 <a href="{{ url_for('settings.delete_feed', id=feed.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete this feed?')">Delete</a>
                             </td>
                         </tr>

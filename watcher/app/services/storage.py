@@ -1,17 +1,19 @@
 import json
-import boto3
+import re
 from pathlib import Path
+
+import boto3
 from slugify import slugify
 from flask import current_app
 
 class StorageService:
     @staticmethod
-    def save_article_to_disk(article_obj, feed_name, reliability, feed_type=None):
+    def save_article_to_disk(article_obj, feed_name, reliability, feed_type=None, country=None):
         """
         Routes the save operation to either Local Disk or S3.
         """
         storage_type = current_app.config.get('STORAGE_TYPE', 'local').lower()
-        file_content = StorageService._format_markdown(article_obj, feed_name, reliability, feed_type)
+        file_content = StorageService._format_markdown(article_obj, feed_name, reliability, feed_type, country)
         entities_payload = StorageService._build_entities_payload(article_obj)
 
         # Define the structure: Source / Year / Month / Day / Title.md
@@ -110,21 +112,35 @@ class StorageService:
         return f"s3://{bucket_name}/{s3_markdown_key}"
 
     @staticmethod
-    def _format_markdown(article, feed_name, reliability, feed_type):
+    def _format_markdown(article, feed_name, reliability, feed_type, country):
         def yaml_list(csv_string):
             if not csv_string:
                 return ""
             items = csv_string.split(',')
-            return "\n".join([f"  - {item.strip()}" for item in items if item.strip()])
+            sanitized = [
+                StorageService._sanitize_frontmatter_value(item.strip())
+                for item in items
+                if item.strip()
+            ]
+            sanitized = [item for item in sanitized if item]
+            return "\n".join([f"  - {item}" for item in sanitized])
+
+        safe_title = StorageService._sanitize_frontmatter_value(article.title)
+        safe_feed_name = StorageService._sanitize_frontmatter_value(feed_name)
+        safe_reliability = StorageService._sanitize_frontmatter_value(reliability)
+        safe_country = StorageService._sanitize_frontmatter_value(country)
+        safe_language = StorageService._sanitize_frontmatter_value(article.language)
+        safe_feed_type = StorageService._sanitize_frontmatter_value(feed_type or '')
 
         md_output = f"""---
-title: "{article.title}"
+title: "{safe_title}"
 date: {article.pub_date.strftime('%Y-%m-%d %H:%M')}
 added: {article.added_date.strftime('%Y-%m-%d %H:%M')}
-source: "{feed_name}"
-reliability: "{reliability}"
-language: "{article.language}"
-feed_type: "{feed_type or ''}"
+source: "{safe_feed_name}"
+reliability: "{safe_reliability}"
+country: "{safe_country}"
+language: "{safe_language}"
+feed_type: "{safe_feed_type}"
 tags:
 {yaml_list(article.tags)}
 organizations:
@@ -167,3 +183,11 @@ link: {article.url}
         if not csv_string:
             return []
         return [item.strip() for item in csv_string.split(',') if item.strip()]
+
+    @staticmethod
+    def _sanitize_frontmatter_value(value: str | None) -> str:
+        if value is None:
+            return ""
+
+        cleaned = re.sub(r"[^A-Za-z0-9 ]+", " ", str(value))
+        return " ".join(cleaned.split())

@@ -1,4 +1,5 @@
-from datetime import datetime
+import json
+from datetime import datetime, timezone
 
 from flask import current_app
 
@@ -10,10 +11,10 @@ from app.services.translator import TranslatorService
 
 class FeedManager:
     @staticmethod
-    def _process_entry(feed_id, feed_vault_id, entry):
+    def _process_entry(feed_id, feed_vault_id, entry, normalized_link: str):
         """Process and persist a single feed entry sequentially."""
         # 1. Fetch Full Content
-        full_text = ScraperService.fetch_full_text(entry.link)
+        full_text = ScraperService.fetch_full_text(normalized_link)
         content_original = full_text if full_text and len(full_text) > 100 else entry.get('summary', entry.title)
 
         # 2. Detect Language
@@ -38,7 +39,7 @@ class FeedManager:
         new_article = Article(
             feed_id=feed_id,
             title=title_english,            # Saved as English (used for filename)
-            url=entry.link,
+            url=normalized_link,
             pub_date=ScraperService.normalize_date(entry),
             added_date=datetime.utcnow(),
 
@@ -76,7 +77,11 @@ class FeedManager:
             feed_id = feed.id
             feed_vault_id = feed.vault_id
 
-            existing_urls = {url for (url,) in db.session.query(Article.url).all()}
+            existing_urls = {
+                ScraperService.normalize_url(url)
+                for (url,) in db.session.query(Article.url).all()
+                if url
+            }
 
             rss_data = ScraperService.parse_feed(feed.url)
             if not rss_data or not hasattr(rss_data, 'entries'):
@@ -84,13 +89,18 @@ class FeedManager:
                 continue
 
             for entry in rss_data.entries:
-                if entry.link in existing_urls:
+                normalized_link = ScraperService.normalize_url(getattr(entry, "link", None))
+                if not normalized_link:
+                    stats['skipped'] += 1
+                    continue
+
+                if normalized_link in existing_urls:
                     stats['skipped'] += 1
                     continue
 
                 try:
-                    FeedManager._process_entry(feed_id, feed_vault_id, entry)
-                    existing_urls.add(entry.link)
+                    FeedManager._process_entry(feed_id, feed_vault_id, entry, normalized_link)
+                    existing_urls.add(normalized_link)
                     stats['added'] += 1
 
                 except Exception:
@@ -104,6 +114,13 @@ class FeedManager:
             # Ensure we don't carry any uncommitted state into the next feed
             db.session.commit()
 
-        SystemConfig.set('last_run_timestamp', datetime.utcnow().isoformat())
+        SystemConfig.set('last_run_timestamp', datetime.now(timezone.utc).isoformat())
+        SystemConfig.set(
+            'last_run_stats',
+            json.dumps({
+                **stats,
+                'feeds': len(feeds)
+            })
+        )
 
         return stats
