@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
@@ -123,3 +124,35 @@ class SystemConfig(db.Model):
             db.session.add(conf)
         conf.value = str(value)
         db.session.commit()
+
+
+class LocationResolution(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), unique=True, nullable=False)
+    latitude = db.Column(db.Float, nullable=True)
+    longitude = db.Column(db.Float, nullable=True)
+    source = db.Column(db.String(20), default='auto')  # auto, manual
+    needs_review = db.Column(db.Boolean, default=False)
+    note = db.Column(db.String(255), nullable=True)
+    candidates_json = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @property
+    def candidates(self):
+        try:
+            return json.loads(self.candidates_json or "[]")
+        except Exception:
+            return []
+
+    def to_payload(self):
+        if self.latitude is None or self.longitude is None:
+            return None
+
+        return {
+            "name": self.name,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "source": self.source,
+            "needs_review": bool(self.needs_review),
+        }

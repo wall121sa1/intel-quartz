@@ -171,11 +171,15 @@ link: {article.url}
 
     @staticmethod
     def _build_entities_payload(article):
+        from app.services.georesolver import GeoResolver
+
+        location_names = StorageService._csv_to_clean_list(article.locations)
         return {
             'organizations': StorageService._csv_to_clean_list(article.organizations),
             'people': StorageService._csv_to_clean_list(article.people),
-            'locations': StorageService._csv_to_clean_list(article.locations),
+            'locations': location_names,
             'events': StorageService._csv_to_clean_list(article.events),
+            'location_resolutions': GeoResolver.export_resolutions(location_names),
         }
 
     @staticmethod

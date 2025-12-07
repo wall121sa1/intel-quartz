@@ -9,6 +9,7 @@ spacy
 newspaper3k
 lxml_html_clean
 python-slugify
+geopy
 psycopg2-binary
 gunicorn
 authlib
