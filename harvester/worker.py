@@ -71,7 +71,7 @@ def resolve_dataset_name():
 
     if inferred_name and inferred_name != explicit_name:
         print(
-            f"⚠️ FUSEKI_ENDPOINT points to dataset '{inferred_name}', but FUSEKI_DATASET_NAME is set to '{explicit_name}'. Using '{explicit_name}'."
+            f"FUSEKI_ENDPOINT points to dataset '{inferred_name}', but FUSEKI_DATASET_NAME is set to '{explicit_name}'. Using '{explicit_name}'."
         )
 
     return explicit_name or inferred_name
@@ -107,16 +107,16 @@ def ensure_fuseki_dataset():
                 ds_type = metadata.get("ds.type") or metadata.get("dbType")
                 if ds_type and ds_type.lower() != "tdb2":
                     print(
-                        f"⚠️ Dataset '{dataset_name}' exists but is type '{ds_type}', expected 'tdb2' for persistence."
+                        f"Dataset '{dataset_name}' exists but is type '{ds_type}', expected 'tdb2' for persistence."
                     )
                 return
             except ValueError:
                 # Non-JSON response; assume dataset exists but cannot confirm type.
                 return
         if response.status_code not in {401, 403, 404}:
-            print(f"⚠️ Unexpected status checking dataset '{dataset_name}': {response.status_code}")
+            print(f"Unexpected status checking dataset '{dataset_name}': {response.status_code}")
         if response.status_code in {401, 403}:
-            print("⚠️ Fuseki admin credentials are missing or invalid; cannot create dataset automatically.")
+            print("Fuseki admin credentials are missing or invalid; cannot create dataset automatically.")
             return
     except Exception as e:
         print(f"⚠️ Failed to query Fuseki datasets: {e}")
@@ -130,12 +130,12 @@ def ensure_fuseki_dataset():
             timeout=15,
         )
         create_response.raise_for_status()
-        print(f"✅ Created Fuseki TDB2 dataset '{dataset_name}'")
+        print(f"Created Fuseki TDB2 dataset '{dataset_name}'")
     except Exception as e:
         error_detail = ""
         if 'create_response' in locals() and create_response is not None:
             error_detail = f" (status: {create_response.status_code}, body: {create_response.text[:200]})"
-        print(f"❌ Unable to create Fuseki dataset '{dataset_name}': {e}{error_detail}")
+        print(f"Unable to create Fuseki dataset '{dataset_name}': {e}{error_detail}")
 
 def process_article(md_path, json_path):
     # Check if we have processed this recently to avoid spamming Fuseki (Optional optimization)
