@@ -179,7 +179,6 @@ services:
     image: stain/jena-fuseki:latest
     container_name: fuseki
     restart: unless-stopped
-    user: "1000:1000"
     environment:
       - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-changeme}
     volumes:
