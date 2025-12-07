@@ -110,6 +110,30 @@ def fuseki_auth_description():
     return "no authentication configured"
 
 
+def fuseki_update_urls():
+    urls = [FUSEKI_ENDPOINT]
+
+    try:
+        parsed = urllib.parse.urlparse(FUSEKI_ENDPOINT)
+        path_parts = [p for p in parsed.path.split("/") if p]
+
+        if path_parts and path_parts[-1] in {"update", "query", "sparql", "data"}:
+            path_parts = path_parts[:-1]
+
+        if path_parts:
+            dataset_path = "/" + "/".join(path_parts)
+            base_dataset_url = f"{parsed.scheme}://{parsed.netloc}{dataset_path}"
+
+            for suffix in ["/update", "?update", "/sparql"]:
+                candidate = f"{base_dataset_url}{suffix}"
+                if candidate not in urls:
+                    urls.append(candidate)
+    except Exception:
+        pass
+
+    return urls
+
+
 def ensure_fuseki_dataset():
     dataset_name = resolve_dataset_name()
     parsed = urllib.parse.urlparse(FUSEKI_ENDPOINT)
@@ -341,33 +365,35 @@ def process_article(md_path, json_path, db_conn, processed_cache):
                     )
 
     if triples:
-        update_query = (
-            f"DELETE {{ {article_uri} ?p ?o }} WHERE {{ {article_uri} ?p ?o }}; "
-            f"INSERT DATA {{ {' '.join(triples)} }}"
-        )
-        try:
-            response = requests.post(
-                FUSEKI_ENDPOINT,
-                data={'update': update_query},
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-                auth=fuseki_update_auth(),
-                timeout=15,
-            )
-            response.raise_for_status()
-            print(f"✅ Synced: {slug}")
-        except Exception as e:
-            error_detail = ""
-            status = None
-            if 'response' in locals() and response is not None:
-                status = response.status_code
-                error_detail = f" (status: {response.status_code}, body: {response.text[:200]})"
+        update_query = f"DELETE {{ {article_uri} ?p ?o }} WHERE {{ {article_uri} ?p ?o }}; INSERT DATA {{ {' '.join(triples)} }}"
+        attempts = []
+        auth = fuseki_update_auth()
+        for url in fuseki_update_urls():
+            response = None
+            try:
+                response = requests.post(
+                    url,
+                    data={'update': update_query},
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                    auth=auth,
+                    timeout=15,
+                )
+                response.raise_for_status()
+                print(f"✅ Synced: {slug} via {url}")
+                break
+            except Exception as e:
+                status = response.status_code if response is not None else None
+                body = response.text[:200] if response is not None else ""
+                attempts.append((url, status, f"{e} (body: {body})"))
+        else:
             auth_hint = ""
-            if status in {401, 403}:
+            if any(status in {401, 403} for _, status, _ in attempts):
                 auth_hint = " Verify that FUSEKI_* credentials match the users configured in Fuseki's shiro.ini and that the dataset accepts updates."
-            print(f"❌ Error syncing {slug}: {e}{error_detail}{auth_hint}")
-            return
 
-    mark_article_processed(slug, md_path, mtime, db_conn, processed_cache)
+            attempt_details = "; ".join(
+                [f"{url} -> {status or 'error'}: {detail}" for url, status, detail in attempts]
+            )
+            print(f"❌ Error syncing {slug}: {attempt_details}{auth_hint}")
 
 def main():
     dataset_name = resolve_dataset_name()
