@@ -277,37 +277,44 @@ class NLPService:
                 total = Article.query.count()
                 logger.info("NLP: Reprocessing %s articles with updated NER model", total)
 
-                query = Article.query.order_by(Article.id).yield_per(batch_size)
-                for article in query:
-                    source_text = (
-                        article.content_raw
-                        or article.content_original
-                        or article.content_edited
-                        or ""
-                    )
+                last_id = None
+                while True:
+                    batch_query = Article.query.order_by(Article.id)
+                    if last_id is not None:
+                        batch_query = batch_query.filter(Article.id > last_id)
 
-                    if not source_text:
-                        continue
+                    articles = batch_query.limit(batch_size).all()
+                    if not articles:
+                        break
 
-                    result = NLPService.process_text(source_text)
-                    entities = result.get("entities", {})
+                    for article in articles:
+                        source_text = (
+                            article.content_raw
+                            or article.content_original
+                            or article.content_edited
+                            or ""
+                        )
 
-                    article.content_edited = result.get("content_with_links") or source_text
-                    article.organizations = ",".join(entities.get("orgs", []))
-                    article.people = ",".join(entities.get("people", []))
-                    article.locations = ",".join(entities.get("locs", []))
-                    article.events = ",".join(entities.get("events", []))
-                    article.tags = ",".join(entities.get("tags", []))
+                        if not source_text:
+                            last_id = article.id
+                            continue
 
-                    db.session.add(article)
-                    updated += 1
+                        result = NLPService.process_text(source_text)
+                        entities = result.get("entities", {})
 
-                    if updated % batch_size == 0:
-                        db.session.commit()
-                        db.session.expunge_all()
+                        article.content_edited = result.get("content_with_links") or source_text
+                        article.organizations = ",".join(entities.get("orgs", []))
+                        article.people = ",".join(entities.get("people", []))
+                        article.locations = ",".join(entities.get("locs", []))
+                        article.events = ",".join(entities.get("events", []))
+                        article.tags = ",".join(entities.get("tags", []))
 
-                db.session.commit()
-                db.session.expunge_all()
+                        db.session.add(article)
+                        updated += 1
+                        last_id = article.id
+
+                    db.session.commit()
+                    db.session.expunge_all()
 
             logger.info("NLP: Completed article reprocess; %s articles updated", updated)
             return updated
