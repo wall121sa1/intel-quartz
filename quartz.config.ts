@@ -95,8 +95,9 @@ const config: QuartzConfig = {
       Plugin.FusekiExplorerPage({
         title: "Fuseki SPARQL explorer",
         slug: "fuseki-explorer" as FullSlug,
-        endpoint: "http://fuseki:3030/knowledge-graph/sparql",
-        baseUri: "http://myvault.com/",
+        endpoint:
+          process.env.FUSEKI_ENDPOINT ?? "http://localhost:3030/knowledge-graph/sparql",
+        baseUri: process.env.BASE_URI ?? "http://myvault.com/",
       }),
       Plugin.MapPage({footerConfig: {
         disclaimer: "The information contained in this map is sensitive. Unauthorized access, use, or distribution is strictly prohibited.",
