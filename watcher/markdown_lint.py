@@ -21,7 +21,9 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for older interpreter
     import tomli as tomllib  # type: ignore[no-redef]
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_DIRECTORIES = ("docs", "notes", "examples")
+DEFAULT_DIRECTORIES = (
+    "\\\\wsl.localhost\\docker-desktop\\mnt\\docker-desktop-disk\\data\\docker\\volumes\\watcher_watcher-vault",
+)
 CONTROL_CHAR_PATTERN = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
 FRONTMATTER_BLOCK_PATTERN = re.compile(r"(---|\+\+\+)\s*\r?\n(.*?)\r?\n\1\s*(\r?\n|$)", re.DOTALL)
 HEADING_ATX_PATTERN = re.compile(r"^\s{0,3}#{1,6}\s+\S", re.MULTILINE)
@@ -34,15 +36,36 @@ def parse_args() -> argparse.Namespace:
         "paths",
         metavar="PATH",
         nargs="*",
-        help="Directories to scan (defaults to docs, notes, examples)",
+        help=(
+            "Directories to scan (defaults to the watcher vault at "
+            "\\\\wsl.localhost\\docker-desktop\\mnt\\docker-desktop-disk\\data\\docker\\volumes\\watcher_watcher-vault)"
+        ),
     )
     return parser.parse_args()
+
+
+def normalize_root(path_str: str) -> Path:
+    """Convert user input into an absolute Path.
+
+    UNC-style paths (e.g., ``\\\\wsl.localhost\\...``) are converted to forward-slash
+    notation so they can be traversed on Linux hosts.
+    """
+
+    normalized_str = path_str
+    if path_str.startswith("\\\\"):
+        normalized_str = path_str.replace("\\", "/")
+
+    candidate = Path(normalized_str).expanduser()
+    if candidate.is_absolute():
+        return candidate
+
+    return (REPO_ROOT / candidate).resolve()
 
 
 def gather_markdown_files(paths: Iterable[str]) -> List[Path]:
     files: List[Path] = []
     for path_str in paths:
-        root = (REPO_ROOT / path_str).resolve()
+        root = normalize_root(path_str)
         if not root.exists():
             continue
         files.extend(p for p in root.rglob("*.md") if p.is_file())
@@ -124,6 +147,13 @@ def analyze_file(path: Path) -> List[str]:
     return issues
 
 
+def display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
 def main() -> int:
     args = parse_args()
     paths = args.paths or DEFAULT_DIRECTORIES
@@ -145,8 +175,7 @@ def main() -> int:
 
     print("Markdown quality check found issues:\n")
     for path, issues in findings:
-        rel_path = path.relative_to(REPO_ROOT)
-        print(f"- {rel_path}")
+        print(f"- {display_path(path)}")
         for issue in issues:
             print(f"  • {issue}")
 
