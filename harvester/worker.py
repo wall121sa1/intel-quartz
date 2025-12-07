@@ -13,6 +13,8 @@ from countryinfo import CountryInfo
 FUSEKI_ENDPOINT = os.getenv("FUSEKI_ENDPOINT", "http://localhost:3030/knowledge-graph/update")
 FUSEKI_ADMIN_USER = os.getenv("FUSEKI_ADMIN_USER", "admin")
 FUSEKI_ADMIN_PASSWORD = os.getenv("FUSEKI_ADMIN_PASSWORD")
+FUSEKI_USER = os.getenv("FUSEKI_USER")
+FUSEKI_PASSWORD = os.getenv("FUSEKI_PASSWORD")
 WATCH_DIR = os.getenv("WATCH_DIR", "/data")
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "60"))
 BASE_URI = os.getenv("BASE_URI", "http://myvault.com/")
@@ -58,6 +60,14 @@ def extract_dataset_name(endpoint_url):
     if parts[-1] in {"update", "query", "data"} and len(parts) >= 2:
         return parts[-2]
     return parts[-1]
+
+
+def fuseki_update_auth():
+    if FUSEKI_PASSWORD and (FUSEKI_USER or FUSEKI_ADMIN_USER):
+        return (FUSEKI_USER or FUSEKI_ADMIN_USER, FUSEKI_PASSWORD)
+    if FUSEKI_ADMIN_PASSWORD:
+        return (FUSEKI_ADMIN_USER, FUSEKI_ADMIN_PASSWORD)
+    return None
 
 
 def ensure_fuseki_dataset():
@@ -156,6 +166,7 @@ def process_article(md_path, json_path):
                 FUSEKI_ENDPOINT,
                 data={'update': update_query},
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
+                auth=fuseki_update_auth(),
                 timeout=15,
             )
             response.raise_for_status()
