@@ -172,10 +172,10 @@ link: {article.url}
     @staticmethod
     def _build_entities_payload(article):
         return {
-            'organizations': StorageService._csv_to_list(article.organizations),
-            'people': StorageService._csv_to_list(article.people),
-            'locations': StorageService._csv_to_list(article.locations),
-            'events': StorageService._csv_to_list(article.events),
+            'organizations': StorageService._csv_to_clean_list(article.organizations),
+            'people': StorageService._csv_to_clean_list(article.people),
+            'locations': StorageService._csv_to_clean_list(article.locations),
+            'events': StorageService._csv_to_clean_list(article.events),
         }
 
     @staticmethod
@@ -183,6 +183,12 @@ link: {article.url}
         if not csv_string:
             return []
         return [item.strip() for item in csv_string.split(',') if item.strip()]
+
+    @staticmethod
+    def _csv_to_clean_list(csv_string):
+        values = StorageService._csv_to_list(csv_string)
+        cleaned = [StorageService._sanitize_frontmatter_value(item) for item in values]
+        return [item for item in cleaned if item]
 
     @staticmethod
     def _sanitize_frontmatter_value(value: str | None) -> str:
