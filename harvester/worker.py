@@ -33,6 +33,12 @@ def clean_id(text):
 def is_url(text):
     return re.match(r'^(http|https|www\.|ftp|[a-zA-Z0-9-]+\.[a-zA-Z]{2,})', text.strip())
 
+
+def literal(value):
+    """Safely wrap a Python value as an RDF literal."""
+
+    return json.dumps(str(value))
+
 def get_coordinates(location_name):
     if is_url(location_name):
         return None
@@ -156,42 +162,81 @@ def process_article(md_path, json_path):
         except Exception:
             return  # Skip bad files
 
-    entities = {}
+    sidecar = {}
     if os.path.exists(json_path):
         with open(json_path, 'r', encoding='utf-8') as f:
             try:
-                entities = json.load(f)
+                sidecar = json.load(f)
             except Exception:
                 pass
 
-    # --- RDF Generation (Same as before) ---
-    triples = []
     slug = os.path.basename(md_path).replace(".md", "")
     article_uri = f"<{BASE_URI}article/{clean_id(slug)}>"
 
-    title = post.metadata.get('title', slug).replace('"', '\\"')
-    triples.append(f'{article_uri} <{BASE_URI}prop/title> "{title}" .')
+    triples = []
+
+    # --- Article metadata ---
+    metadata = post.metadata or {}
+    title = metadata.get('title', slug)
+    triples.append(f'{article_uri} <{BASE_URI}prop/title> {literal(title)} .')
     triples.append(f'{article_uri} <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <{BASE_URI}class/Article> .')
 
-    entity_map = {"organizations": "Organization", "people": "Person", "locations": "Location"}
+    date_value = metadata.get('date') or metadata.get('added')
+    if date_value:
+        triples.append(f'{article_uri} <{BASE_URI}prop/date> {literal(date_value)} .')
+
+    link = metadata.get('link') or metadata.get('url')
+    if link:
+        triples.append(f'{article_uri} <{BASE_URI}prop/sourceUrl> {literal(link)} .')
+
+    for field in ['source', 'reliability', 'language', 'feed_type', 'country']:
+        if metadata.get(field):
+            triples.append(f'{article_uri} <{BASE_URI}prop/{field}> {literal(metadata[field])} .')
+
+    if metadata.get('tags'):
+        tags = metadata['tags']
+        if isinstance(tags, str):
+            tags = [t.strip() for t in tags.split(',') if t.strip()]
+        for tag in tags:
+            triples.append(f'{article_uri} <{BASE_URI}prop/tag> {literal(tag)} .')
+
+    # --- Entities and mentions ---
+    entity_map = {
+        "organizations": "Organization",
+        "people": "Person",
+        "locations": "Location",
+        "events": "Event",
+    }
+
+    # Merge locations from frontmatter with the sidecar so geospatial data is captured even if the JSON is missing.
+    merged_entities = {key: set() for key in entity_map}
+    for key in entity_map:
+        for source in [metadata.get(key, []), sidecar.get(key, [])]:
+            if isinstance(source, str):
+                source = [item.strip() for item in source.split(',') if item.strip()]
+            for item in source or []:
+                if item:
+                    merged_entities[key].add(item.strip())
 
     for category, class_name in entity_map.items():
-        if category in entities:
-            for item in entities[category]:
-                item = item.strip()
-                sanitized_item = item.replace('"', '')
-                entity_uri = f"<{BASE_URI}entity/{clean_id(item)}>"
-                triples.append(f'{article_uri} <{BASE_URI}prop/mentions> {entity_uri} .')
-                triples.append(
-                    f'{entity_uri} <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <{BASE_URI}class/{class_name}> .'
-                )
-                triples.append(f'{entity_uri} <http://www.w3.org/2000/01/rdf-schema#label> "{sanitized_item}" .')
+        for item in sorted(merged_entities[category]):
+            sanitized_item = item.replace('"', '')
+            entity_uri = f"<{BASE_URI}entity/{clean_id(item)}>"
+            triples.append(f'{article_uri} <{BASE_URI}prop/mentions> {entity_uri} .')
+            triples.append(
+                f'{entity_uri} <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <{BASE_URI}class/{class_name}> .'
+            )
+            triples.append(f'{entity_uri} <http://www.w3.org/2000/01/rdf-schema#label> {literal(sanitized_item)} .')
 
-                if category == "locations":
-                    coords = get_coordinates(item)
-                    if coords:
-                        triples.append(f'{entity_uri} <{BASE_URI}prop/lat> "{coords[0]}" .')
-                        triples.append(f'{entity_uri} <{BASE_URI}prop/lng> "{coords[1]}" .')
+            if category == "locations":
+                coords = get_coordinates(item)
+                if coords:
+                    triples.append(
+                        f'{entity_uri} <http://www.w3.org/2003/01/geo/wgs84_pos#lat> {literal(coords[0])} .'
+                    )
+                    triples.append(
+                        f'{entity_uri} <http://www.w3.org/2003/01/geo/wgs84_pos#long> {literal(coords[1])} .'
+                    )
 
     if triples:
         update_query = f"DELETE {{ {article_uri} ?p ?o }} WHERE {{ {article_uri} ?p ?o }}; INSERT DATA {{ {' '.join(triples)} }}"
