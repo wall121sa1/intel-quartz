@@ -72,12 +72,16 @@
 .fuseki-field input,
 .fuseki-field select,
 .fuseki-field textarea {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #e6f1ff;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #0b1220;
   border-radius: 10px;
   padding: 0.65rem 0.75rem;
   font-size: 0.95rem;
+}
+
+.fuseki-field select option {
+  color: #0b1220;
 }
 
 .fuseki-field input:focus,
@@ -228,6 +232,20 @@
 
 .fuseki-inline strong {
   color: #e6f1ff;
+}
+
+.fuseki-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #d6e3ff;
+  text-decoration: none;
+  font-weight: 700;
+  margin-top: 0.35rem;
+}
+
+.fuseki-home:hover {
+  text-decoration: underline;
 }
 
 .fuseki-error {
