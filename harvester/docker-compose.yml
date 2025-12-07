@@ -11,7 +11,7 @@ services:
       FUSEKI_ADMIN_PASSWORD: ${FUSEKI_ADMIN_PASSWORD:-changeme}
       WATCH_DIR: ${WATCH_DIR:-/data}
       POLL_INTERVAL: ${POLL_INTERVAL:-60}
-      BASE_URI: ${BASE_URI:-http://myvault.com/}
+      BASE_URI: ${BASE_URI:-file:///data/}
     volumes:
       - ./data:/data:ro
     restart: unless-stopped
