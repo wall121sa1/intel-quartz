@@ -6,6 +6,8 @@ services:
       dockerfile: Dockerfile
     environment:
       FUSEKI_ENDPOINT: ${FUSEKI_ENDPOINT:-http://fuseki:3030/knowledge-graph/update}
+      FUSEKI_ADMIN_USER: ${FUSEKI_ADMIN_USER:-admin}
+      FUSEKI_ADMIN_PASSWORD: ${FUSEKI_ADMIN_PASSWORD:-changeme}
       WATCH_DIR: ${WATCH_DIR:-/data}
       POLL_INTERVAL: ${POLL_INTERVAL:-60}
       BASE_URI: ${BASE_URI:-http://myvault.com/}
