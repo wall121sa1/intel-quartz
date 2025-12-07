@@ -3,6 +3,7 @@ import os
 import re
 import socket
 from datetime import datetime, timedelta
+from threading import Lock, Thread
 
 import requests
 from flask import current_app
@@ -77,6 +78,8 @@ _remote_session = None
 _remote_disable_until: datetime | None = None
 _remote_failures = 0
 _remote_usage_announced = False
+
+_reprocess_lock = Lock()
 
 
 def _collect_custom_rules():
@@ -229,9 +232,84 @@ class NLPService:
                 timeout=10,
             )
             response.raise_for_status()
-            logger.info("NLP: Remote model reloaded with %s rules", len(rules.get("tags", [])))
+            logger.info(
+                "NLP: Remote model reloaded with %s rules; scheduling article reprocessing",
+                len(rules.get("tags", [])),
+            )
+
+            try:
+                app = current_app._get_current_object()
+                Thread(target=NLPService.reprocess_all_articles, args=(app,), daemon=True).start()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("NLP: Unable to schedule article reprocessing: %s", exc)
             return
         except Exception as exc:
             message = f"NLP: Remote reload failed; model remains unchanged: {exc}"
             logger.error(message)
             print(message)
+
+    @staticmethod
+    def reprocess_all_articles(app=None, batch_size: int = 50) -> int:
+        """Re-run NER over all stored articles so new entities are tagged automatically."""
+
+        app_obj = app or (current_app._get_current_object() if current_app else None)
+        if not app_obj:
+            logger.error("NLP: No Flask app available; cannot reprocess articles.")
+            return 0
+
+        if not _remote_nlp_url:
+            logger.warning("NLP: Remote NER URL not configured; skipping bulk reprocess.")
+            return 0
+
+        if not _remote_available():
+            logger.warning("NLP: Remote NER temporarily unavailable; skipping bulk reprocess.")
+            return 0
+
+        if not _reprocess_lock.acquire(blocking=False):
+            logger.info("NLP: Article reprocess already running; skipping duplicate trigger.")
+            return 0
+
+        updated = 0
+        try:
+            with app_obj.app_context():
+                from app.models import Article, db
+
+                total = Article.query.count()
+                logger.info("NLP: Reprocessing %s articles with updated NER model", total)
+
+                query = Article.query.order_by(Article.id).yield_per(batch_size)
+                for article in query:
+                    source_text = (
+                        article.content_raw
+                        or article.content_original
+                        or article.content_edited
+                        or ""
+                    )
+
+                    if not source_text:
+                        continue
+
+                    result = NLPService.process_text(source_text)
+                    entities = result.get("entities", {})
+
+                    article.content_edited = result.get("content_with_links") or source_text
+                    article.organizations = ",".join(entities.get("orgs", []))
+                    article.people = ",".join(entities.get("people", []))
+                    article.locations = ",".join(entities.get("locs", []))
+                    article.events = ",".join(entities.get("events", []))
+                    article.tags = ",".join(entities.get("tags", []))
+
+                    db.session.add(article)
+                    updated += 1
+
+                    if updated % batch_size == 0:
+                        db.session.commit()
+                        db.session.expunge_all()
+
+                db.session.commit()
+                db.session.expunge_all()
+
+            logger.info("NLP: Completed article reprocess; %s articles updated", updated)
+            return updated
+        finally:
+            _reprocess_lock.release()
