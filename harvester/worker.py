@@ -340,8 +340,14 @@ def process_article(md_path, json_path, db_conn, processed_cache):
             if isinstance(source, str):
                 source = [item.strip() for item in source.split(',') if item.strip()]
             for item in source or []:
-                if item:
-                    merged_entities[key].add(item.strip())
+                if item is None:
+                    continue
+                if not isinstance(item, str):
+                    item = str(item)
+
+                stripped = item.strip()
+                if stripped:
+                    merged_entities[key].add(stripped)
 
     for category, class_name in entity_map.items():
         for item in sorted(merged_entities[category]):
