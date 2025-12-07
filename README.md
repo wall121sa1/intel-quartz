@@ -31,3 +31,8 @@ Open http://localhost:8080 and navigate to `/fuseki-explorer` to use the SPARQL 
 * `FUSEKI_ADMIN_PASSWORD` – admin password for the Fuseki instance (defaults to `changeme`).
 
 Stop the services with `docker compose down quartz fuseki`. Data persists in the `fuseki-data` volume managed by the watcher stack.
+
+### Location coordinates feeding the map view
+
+- Locations detected in the Obsidian ingest UI are geocoded automatically (using OpenStreetMap/Nominatim) when articles are approved, and the coordinates are stored alongside the `.entities.json` sidecar that the Fuseki harvester reads.
+- Resolve ambiguous or conflicting place names from the **Locations** tab in the ingest UI, which shows geocoder suggestions, lets you override latitude/longitude manually, and flags entries that still need review.

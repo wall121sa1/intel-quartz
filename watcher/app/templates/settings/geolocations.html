@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2 class="mb-3">Location geocoding</h2>
+<p class="text-muted">
+    Locations extracted from articles are geocoded automatically and pushed into Fuseki for the map view.
+    Use this page to confirm ambiguous places, override incorrect coordinates, and keep a record of how
+    each place should be resolved.
+</p>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Needs review ({{ flagged|length }})</span>
+            </div>
+            <div class="card-body">
+                {% if not flagged %}
+                    <p class="text-muted mb-0">Nothing to review right now. Freshly ingested places will show up here if the geocoder returns multiple matches or none at all.</p>
+                {% else %}
+                    {% for loc in flagged %}
+                        <div class="border rounded p-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <strong>{{ loc.name }}</strong>
+                                    {% if loc.note %}<div class="small text-muted">{{ loc.note }}</div>{% endif %}
+                                </div>
+                                <form method="post" action="{{ url_for('settings.refresh_geolocation', loc_id=loc.id) }}">
+                                    <button class="btn btn-outline-secondary btn-sm" type="submit">Re-run geocode</button>
+                                </form>
+                            </div>
+                            <form method="post" action="{{ url_for('settings.update_geolocation', loc_id=loc.id) }}" class="geolocation-form">
+                                <div class="row g-2 mb-2">
+                                    <div class="col">
+                                        <label class="form-label small">Latitude</label>
+                                        <input class="form-control form-control-sm" name="latitude" value="{{ loc.latitude or '' }}" required>
+                                    </div>
+                                    <div class="col">
+                                        <label class="form-label small">Longitude</label>
+                                        <input class="form-control form-control-sm" name="longitude" value="{{ loc.longitude or '' }}" required>
+                                    </div>
+                                </div>
+                                {% if loc.candidates %}
+                                    <div class="mb-2 small text-muted">Suggestions</div>
+                                    <div class="d-flex flex-wrap gap-2 mb-2">
+                                        {% for candidate in loc.candidates %}
+                                            <button type="button" class="btn btn-outline-primary btn-sm fill-suggestion" data-lat="{{ candidate.latitude }}" data-lon="{{ candidate.longitude }}">
+                                                Use {{ '%.4f'|format(candidate.latitude) }}, {{ '%.4f'|format(candidate.longitude) }}
+                                            </button>
+                                            <span class="badge bg-light text-dark">{{ candidate.label }}</span>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                                <button class="btn btn-primary btn-sm" type="submit">Save manual location</button>
+                            </form>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">Resolved locations (latest 200)</div>
+            <div class="card-body">
+                {% if not resolved %}
+                    <p class="text-muted mb-0">No resolved locations stored yet.</p>
+                {% else %}
+                    {% for loc in resolved %}
+                        <div class="border rounded p-3 mb-3">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <strong>{{ loc.name }}</strong>
+                                    <div class="small text-muted">{{ '%.4f'|format(loc.latitude) }}, {{ '%.4f'|format(loc.longitude) }} · {{ loc.source|capitalize }}</div>
+                                </div>
+                                <form method="post" action="{{ url_for('settings.refresh_geolocation', loc_id=loc.id) }}">
+                                    <button class="btn btn-outline-secondary btn-sm" type="submit">Refresh</button>
+                                </form>
+                            </div>
+                            <form method="post" action="{{ url_for('settings.update_geolocation', loc_id=loc.id) }}" class="geolocation-form mt-2">
+                                <div class="row g-2">
+                                    <div class="col">
+                                        <label class="form-label small">Latitude</label>
+                                        <input class="form-control form-control-sm" name="latitude" value="{{ loc.latitude or '' }}" required>
+                                    </div>
+                                    <div class="col">
+                                        <label class="form-label small">Longitude</label>
+                                        <input class="form-control form-control-sm" name="longitude" value="{{ loc.longitude or '' }}" required>
+                                    </div>
+                                </div>
+                                <button class="btn btn-link btn-sm ps-0" type="submit">Override</button>
+                            </form>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.fill-suggestion').forEach((button) => {
+            button.addEventListener('click', () => {
+                const form = button.closest('.geolocation-form');
+                if (!form) return;
+                const latField = form.querySelector('input[name="latitude"]');
+                const lonField = form.querySelector('input[name="longitude"]');
+                if (latField && lonField) {
+                    latField.value = button.dataset.lat;
+                    lonField.value = button.dataset.lon;
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}
