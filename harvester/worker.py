@@ -296,6 +296,21 @@ def process_article(md_path, json_path, db_conn, processed_cache):
             except Exception:
                 pass
 
+    location_overrides = {}
+    for record in sidecar.get('location_resolutions', []) or []:
+        name = (record.get('name') or '').strip()
+        if not name:
+            continue
+        try:
+            lat = float(record.get('latitude'))
+            lon = float(record.get('longitude'))
+        except (TypeError, ValueError):
+            continue
+        location_overrides[name] = (lat, lon)
+        lower_name = name.lower()
+        if lower_name not in location_overrides:
+            location_overrides[lower_name] = (lat, lon)
+
     article_uri = f"<{BASE_URI}article/{clean_id(slug)}>"
 
     triples = []
@@ -361,7 +376,13 @@ def process_article(md_path, json_path, db_conn, processed_cache):
             triples.append(f'{entity_uri} <http://www.w3.org/2000/01/rdf-schema#label> {literal(sanitized_item)} .')
 
             if category == "locations":
-                coords = get_coordinates(item)
+                coords = (
+                    location_overrides.get(sanitized_item)
+                    or location_overrides.get(sanitized_item.lower())
+                    or location_overrides.get(item)
+                    or location_overrides.get(item.lower())
+                    or get_coordinates(item)
+                )
                 if coords:
                     triples.append(
                         f'{entity_uri} <http://www.w3.org/2003/01/geo/wgs84_pos#lat> {literal(coords[0])} .'

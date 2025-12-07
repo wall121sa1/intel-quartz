@@ -7,6 +7,7 @@ from app.models import Article, Feed, SystemConfig, db
 from app.services.nlp import NLPService
 from app.services.scraper import ScraperService
 from app.services.translator import TranslatorService
+from app.services.georesolver import GeoResolver
 
 
 class FeedManager:
@@ -34,6 +35,9 @@ class FeedManager:
 
         # 4. Run NLP (On the English text)
         nlp_result = NLPService.process_text(content_english)
+
+        # 4a. Seed location resolution suggestions so coordinates can be reconciled later.
+        GeoResolver.ensure_locations(nlp_result['entities']['locs'])
 
         # 5. Save (commit inside to guarantee serial ordering before next fetch)
         new_article = Article(

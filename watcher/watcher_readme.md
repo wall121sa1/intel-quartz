@@ -153,10 +153,16 @@ Add New Entities: Highlight text in the body, Right Click, and select the entity
 
 Publish: Click "Publish to Obsidian".
 
+4a. Resolve locations for the map view
+
+Use Settings > Locations to review ambiguous place names, pick a suggested coordinate, or enter latitude/longitude manually. Saved resolutions are written to the sidecar JSON so the Fuseki sync prefers your confirmed positions over automatic guesses.
+
 5. The Output
 
 Approved articles are saved to the vault_data/ directory (or your configured path) in the following structure:
 vault_data/{Source_Name}/{Year}/{Month}/{Day}/{Article_Title}.md
+
+If you're running the bundled Quartz frontend via `docker compose up quartz`, that container mounts the same `watcher-vault` volume at `docs/watcher_vault` so the published Markdown files are indexed and searchable automatically.
 
 ⚙️ Configuration
 

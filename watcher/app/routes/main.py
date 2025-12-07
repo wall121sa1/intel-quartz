@@ -5,6 +5,7 @@ from sqlalchemy import case, func, or_
 from app.services.manager import FeedManager
 from app.services.storage import StorageService
 from app.services.nlp import NLPService
+from app.services.georesolver import GeoResolver
 import json
 from datetime import datetime, timezone
 import dateutil.parser
@@ -303,6 +304,9 @@ def approve_article(id):
     article.locations = request.form.get('locs')
     article.events = request.form.get('events')
     article.tags = request.form.get('tags')
+
+    # Ensure location suggestions exist for the edited list before exporting sidecars.
+    GeoResolver.ensure_locations(GeoResolver.csv_to_list(article.locations))
     
     # FEEDBACK LOOP
     try:
