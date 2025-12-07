@@ -86,6 +86,14 @@ def fuseki_update_auth():
     return None
 
 
+def fuseki_auth_description():
+    if FUSEKI_PASSWORD and (FUSEKI_USER or FUSEKI_ADMIN_USER):
+        return f"basic auth as '{FUSEKI_USER or FUSEKI_ADMIN_USER}' with FUSEKI_PASSWORD set"
+    if FUSEKI_ADMIN_PASSWORD:
+        return f"basic auth as admin '{FUSEKI_ADMIN_USER}' with FUSEKI_ADMIN_PASSWORD set"
+    return "no authentication configured"
+
+
 def ensure_fuseki_dataset():
     dataset_name = resolve_dataset_name()
     parsed = urllib.parse.urlparse(FUSEKI_ENDPOINT)
@@ -199,11 +207,20 @@ def process_article(md_path, json_path):
             print(f"✅ Synced: {slug}")
         except Exception as e:
             error_detail = ""
+            status = None
             if 'response' in locals() and response is not None:
+                status = response.status_code
                 error_detail = f" (status: {response.status_code}, body: {response.text[:200]})"
-            print(f"❌ Error syncing {slug}: {e}{error_detail}")
+            auth_hint = ""
+            if status in {401, 403}:
+                auth_hint = " Verify that FUSEKI_* credentials match the users configured in Fuseki's shiro.ini and that the dataset accepts updates."
+            print(f"❌ Error syncing {slug}: {e}{error_detail}{auth_hint}")
 
 def main():
+    dataset_name = resolve_dataset_name()
+    print(f"Targeting Fuseki dataset '{dataset_name}' at {FUSEKI_ENDPOINT}")
+    print(f"Fuseki auth mode: {fuseki_auth_description()}")
+
     ensure_fuseki_dataset()
     print(f"🚀 Harvester running. Watching {WATCH_DIR} recursively...")
     while True:
