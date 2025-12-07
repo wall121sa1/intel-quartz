@@ -13,7 +13,9 @@ from countryinfo import CountryInfo
 FUSEKI_ENDPOINT = os.getenv("FUSEKI_ENDPOINT", "http://localhost:3030/knowledge-graph/update")
 WATCH_DIR = os.getenv("WATCH_DIR", "/data")
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "60"))
-BASE_URI = "http://myvault.com/"
+BASE_URI = os.getenv("BASE_URI", "http://myvault.com/")
+if not BASE_URI.endswith("/"):
+    BASE_URI = f"{BASE_URI}/"
 
 geolocator = Nominatim(user_agent="obsidian_harvester_v2")
 
@@ -24,53 +26,65 @@ def is_url(text):
     return re.match(r'^(http|https|www\.|ftp|[a-zA-Z0-9-]+\.[a-zA-Z]{2,})', text.strip())
 
 def get_coordinates(location_name):
-    if is_url(location_name): return None
+    if is_url(location_name):
+        return None
     try:
         # Try Country Capital Logic
         try:
             country = CountryInfo(location_name)
             capital = country.capital()
-            if capital: location_name = f"{capital}, {location_name}"
-        except: pass
-        
+            if capital:
+                location_name = f"{capital}, {location_name}"
+        except Exception:
+            pass
+
         loc = geolocator.geocode(location_name, timeout=10)
-        if loc: return (loc.latitude, loc.longitude)
-    except: pass
+        if loc:
+            return (loc.latitude, loc.longitude)
+    except Exception:
+        pass
     return None
 
 def process_article(md_path, json_path):
     # Check if we have processed this recently to avoid spamming Fuseki (Optional optimization)
     # For now, we just process.
-    
+
     with open(md_path, 'r', encoding='utf-8') as f:
-        try: post = frontmatter.load(f)
-        except: return # Skip bad files
+        try:
+            post = frontmatter.load(f)
+        except Exception:
+            return  # Skip bad files
 
     entities = {}
     if os.path.exists(json_path):
         with open(json_path, 'r', encoding='utf-8') as f:
-            try: entities = json.load(f)
-            except: pass
+            try:
+                entities = json.load(f)
+            except Exception:
+                pass
 
     # --- RDF Generation (Same as before) ---
     triples = []
     slug = os.path.basename(md_path).replace(".md", "")
     article_uri = f"<{BASE_URI}article/{clean_id(slug)}>"
-    
+
     title = post.metadata.get('title', slug).replace('"', '\\"')
     triples.append(f'{article_uri} <{BASE_URI}prop/title> "{title}" .')
     triples.append(f'{article_uri} <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <{BASE_URI}class/Article> .')
 
     entity_map = {"organizations": "Organization", "people": "Person", "locations": "Location"}
-    
+
     for category, class_name in entity_map.items():
         if category in entities:
             for item in entities[category]:
                 item = item.strip()
+                sanitized_item = item.replace('"', '')
                 entity_uri = f"<{BASE_URI}entity/{clean_id(item)}>"
                 triples.append(f'{article_uri} <{BASE_URI}prop/mentions> {entity_uri} .')
-                triples.append(f'{entity_uri} <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <{BASE_URI}class/{class_name}> .')
-                triples.append(f'{entity_uri} <http://www.w3.org/2000/01/rdf-schema#label> "{item.replace("\"", "")}" .')
+                triples.append(
+                    f'{entity_uri} <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <{BASE_URI}class/{class_name}> .'
+                )
+                triples.append(f'{entity_uri} <http://www.w3.org/2000/01/rdf-schema#label> "{sanitized_item}" .')
 
                 if category == "locations":
                     coords = get_coordinates(item)
@@ -97,7 +111,7 @@ def main():
                     # Look for sidecar in same folder
                     json_path = os.path.join(root, filename.replace(".md", ".entities.json"))
                     process_article(md_path, json_path)
-        
+
         print(f"💤 Sleeping {POLL_INTERVAL}s...")
         time.sleep(POLL_INTERVAL)
 
