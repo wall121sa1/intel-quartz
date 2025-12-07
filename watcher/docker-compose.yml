@@ -167,6 +167,9 @@ services:
     restart: unless-stopped
     environment:
       - FUSEKI_ENDPOINT=${FUSEKI_ENDPOINT:-http://fuseki:3030/knowledge-graph/update}
+      - FUSEKI_DATASET_NAME=${FUSEKI_DATASET_NAME:-knowledge-graph}
+      - FUSEKI_ADMIN_USER=${FUSEKI_ADMIN_USER:-admin}
+      - FUSEKI_ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-changeme}
       - WATCH_DIR=/data
       - POLL_INTERVAL=300
     volumes:
