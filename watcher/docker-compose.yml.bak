@@ -51,6 +51,7 @@ services:
       - ner
       - libretranslate
       - telegram_rss
+
     deploy:
       resources:
         limits:
@@ -156,25 +157,9 @@ services:
       ports:
       - "8081:80"
       volumes:
-      - watcher-vault:/srv
-      - ./filebrowser.db:/database.db
+      - watcher-vault:/srv           # Mounts your existing vault data here
+      - ./filebrowser.db:/database.db # Stores users/settings locally
       restart: unless-stopped
-
-  # --- NEW SERVICE: KNOWLEDGE GRAPH SYNC ---
-  harvester:
-    build: ../harvester
-    container_name: article-harvester
-    restart: unless-stopped
-    # Use host networking so we can reach the Tailscale IP (100.x.y.z)
-    network_mode: "host" 
-    environment:
-      # REPLACE WITH YOUR ACTUAL TAILSCALE IP
-      - FUSEKI_ENDPOINT=http://fuseki-data.tail7f3b2f.ts.net:3030/knowledge-graph/update
-      - WATCH_DIR=/data
-      - POLL_INTERVAL=300
-    volumes:
-      # We mount the SAME volume used by watcher/worker
-      - watcher-vault:/data
 
 volumes:
   watcher-vault:
@@ -182,3 +167,4 @@ volumes:
   libretranslate_api_keys:
   libretranslate_models:
   telegram_rss_pgdata:
+
