@@ -22,7 +22,7 @@ FUSEKI_USER = os.getenv("FUSEKI_USER")
 FUSEKI_PASSWORD = os.getenv("FUSEKI_PASSWORD")
 WATCH_DIR = os.getenv("WATCH_DIR", "/data")
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "60"))
-BASE_URI = os.getenv("BASE_URI", "http://myvault.com/")
+BASE_URI = os.getenv("BASE_URI", "file:///data/")
 HARVESTER_DATABASE_URL = os.getenv("HARVESTER_DATABASE_URL")
 if not BASE_URI.endswith("/"):
     BASE_URI = f"{BASE_URI}/"

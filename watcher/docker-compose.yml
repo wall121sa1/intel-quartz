@@ -171,6 +171,7 @@ services:
       - FUSEKI_ADMIN_USER=${FUSEKI_ADMIN_USER:-admin}
       - FUSEKI_ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-changeme}
       - WATCH_DIR=/data
+      - BASE_URI=${BASE_URI:-file:///data/}
       - POLL_INTERVAL=300
     volumes:
       # We mount the SAME volume used by watcher/worker
