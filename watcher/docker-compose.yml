@@ -165,16 +165,27 @@ services:
     build: ../harvester
     container_name: article-harvester
     restart: unless-stopped
-    # Use host networking so we can reach the Tailscale IP (100.x.y.z)
-    network_mode: "host" 
     environment:
-      # REPLACE WITH YOUR ACTUAL TAILSCALE IP
-      - FUSEKI_ENDPOINT=http://fuseki-data.tail7f3b2f.ts.net:3030/knowledge-graph/update
+      - FUSEKI_ENDPOINT=${FUSEKI_ENDPOINT:-http://fuseki:3030/knowledge-graph/update}
       - WATCH_DIR=/data
       - POLL_INTERVAL=300
     volumes:
       # We mount the SAME volume used by watcher/worker
       - watcher-vault:/data
+    depends_on:
+      - fuseki
+
+  fuseki:
+    image: stain/jena-fuseki:latest
+    container_name: fuseki
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-changeme}
+    volumes:
+      - fuseki-data:/fuseki
+    ports:
+      - "3030:3030"
 
 volumes:
   watcher-vault:
@@ -182,3 +193,4 @@ volumes:
   libretranslate_api_keys:
   libretranslate_models:
   telegram_rss_pgdata:
+  fuseki-data:
