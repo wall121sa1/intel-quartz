@@ -5,6 +5,9 @@ services:
     image: stain/jena-fuseki:latest
     container_name: fuseki
     restart: unless-stopped
+    # The image writes config/data to /fuseki; ensure the host directory is
+    # writable by UID 1000 (see README for chown step).
+    user: "1000:1000"
     environment:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:?set in .env}
     volumes:

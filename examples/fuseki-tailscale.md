@@ -42,6 +42,8 @@ sudo tailscale up --ssh --advertise-tags=tag:fuseki
 mkdir -p ~/fuseki && cd ~/fuseki
 # Save your admin password in an .env file that Docker Compose will read
 echo "ADMIN_PASSWORD=<choose-a-strong-password>" > .env
+# Create a data dir writable by UID 1000 (Fuseki container user)
+mkdir -p fuseki-data && sudo chown 1000:1000 fuseki-data
 # Create docker-compose.yml
 cat > docker-compose.yml <<'YML'
 version: "3.8"
@@ -51,6 +53,8 @@ services:
     image: stain/jena-fuseki:latest
     container_name: fuseki
     restart: unless-stopped
+    # The image writes to /fuseki as UID 1000; keep host dir writable
+    user: "1000:1000"
     environment:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:?set in .env}
     volumes:
@@ -75,6 +79,8 @@ Check logs and confirm it’s listening on port 3030:
 ```bash
 docker compose logs -f
 ```
+If you see `cp: cannot create regular file '/fuseki/shiro.ini': Permission denied`,
+ensure `fuseki-data` is owned by UID 1000 (re-run `sudo chown 1000:1000 fuseki-data`).
 Data is persisted under `~/fuseki/fuseki-data`.
 
 ## 5) Verify tailnet-only access
@@ -83,11 +89,16 @@ Data is persisted under `~/fuseki/fuseki-data`.
    tailscale ip -4
    tailscale status --peers=false
    ```
-2. From a different device on the same tailnet, try:
+2. From the **same host**, confirm Fuseki is listening before testing remotely:
+   ```bash
+   curl http://127.0.0.1:3030/
+   sudo ss -tlnp 'sport = :3030'   # should show java/fuseki bound on 0.0.0.0:3030 when using host networking
+   ```
+3. From a different device on the same tailnet, try:
    ```bash
    curl http://<tailscale-hostname-or-ip>:3030/
    ```
-3. Confirm that Fuseki is **not** reachable via the public Lightsail IP on 3030 (it shouldn’t be, because we didn’t publish a public port and the firewall blocks it).
+4. Confirm that Fuseki is **not** reachable via the public Lightsail IP on 3030 (it shouldn’t be, because we didn’t publish a public port and the firewall blocks it).
 
 ## 6) Set ACLs for who can reach Fuseki
 In the Tailscale ACL editor, add a rule so the right users/groups can reach `tag:fuseki` on port 3030:
@@ -102,6 +113,16 @@ In the Tailscale ACL editor, add a rule so the right users/groups can reach `tag
 }
 ```
 Adjust the groups and tag owners to your needs. Save & test the ACLs in the admin console.
+
+### If you can’t reach 100.x.x.x:3030 from another tailnet device
+- **Check the container:** `docker compose ps` (should be “Up”), `docker compose logs -f` (look for startup errors).
+- **Verify the listener:** `sudo ss -tlnp 'sport = :3030'` should show `java`/`fuseki` bound to `0.0.0.0:3030` (with `network_mode: host`). If it’s only on `127.0.0.1`, ensure host networking is enabled or switch to the localhost + `tailscale serve` option.
+- **Confirm Tailscale is up:** `tailscale status --self --peers=false` and that the device is logged in and tagged `tag:fuseki`.
+- **ACLs:** Make sure there’s a grant for your user/group to reach `tag:fuseki` on `tcp:3030` and no conflicting denies.
+- **Security groups:** Do **not** open 3030 publicly. Only SSH (22) needs to be allowed; Tailscale uses outbound connections.
+
+### Where is the web GUI?
+Fuseki’s web interface lives at `http://<tailscale-ip-or-MagicDNS>:3030/` (or `http://127.0.0.1:3030/` from the host). The landing page lets you create/upload datasets and view existing ones; admin actions require the password you set in `.env`.
 
 ## 7) Ongoing operations
 - **Restart/stop**: `docker compose restart` / `docker compose down`
