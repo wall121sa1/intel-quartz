@@ -17,12 +17,15 @@
     "check": "tsc --noEmit && npx prettier . --check",
     "format": "npx prettier . --write",
     "test": "tsx --test",
-    "profile": "0x -D prof ./quartz/bootstrap-cli.mjs build --concurrency=1"
+    "profile": "0x -D prof ./quartz/bootstrap-cli.mjs build --concurrency=1",
+    "check:npm": "node scripts/checkNpmVersion.mjs",
+    "deps:check": "npm outdated --depth=0"
   },
   "engines": {
-    "npm": ">=10.9.2",
+    "npm": ">=11.6.4",
     "node": ">=22"
   },
+  "packageManager": "npm@11.6.4",
   "keywords": [
     "site generator",
     "ssg",
