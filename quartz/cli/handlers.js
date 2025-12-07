@@ -237,6 +237,8 @@ export async function handleBuild(argv) {
     argv.watch = true
   }
 
+  const contentFolder = resolveContentPath(argv.directory)
+
   console.log(`\n${styleText(["bgGreen", "black"], ` Quartz v${version} `)} \n`)
   const ctx = await esbuild.context({
     entryPoints: [fp],
@@ -475,6 +477,7 @@ export async function handleBuild(argv) {
       "**/*.tsx",
       "**/*.scss",
       "package.json",
+      path.join(contentFolder, "**/*"),
     ])
     chokidar
       .watch(paths, { ignoreInitial: true })

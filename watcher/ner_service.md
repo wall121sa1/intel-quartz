@@ -40,6 +40,7 @@ The local SpaCy pipeline works for small loads, but for many concurrent feeds it
 
 - **Worker size**: The heavy model lives in the remote service, so watcher workers can be tuned without accounting for the model’s memory footprint.
 - **Task chunking**: Continue committing/expunging each article inside tasks to avoid growing the SQLAlchemy identity map.
+- **Bulk reprocess throttling**: Control how the background NER reprocess loop walks the article table by setting ``NER_REPROCESS_BATCH_SIZE`` (default ``50``) and ``NER_REPROCESS_BATCH_PAUSE_SECONDS`` (default ``0``). Use a small pause (e.g., ``0.25`` seconds) to leave headroom on busy hosts.
 - **Health checks**: Add a `/health` endpoint to the NER service and wire it into orchestration so unhealthy pods are rotated out quickly.
 
 This setup limits the memory footprint of the watcher workers while keeping NLP results centralized. If the remote service cannot be reached, processing is skipped and a log entry is emitted.

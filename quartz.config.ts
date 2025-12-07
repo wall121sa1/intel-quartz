@@ -9,7 +9,7 @@ import { FullSlug } from "./quartz/util/path"
  */
 const config: QuartzConfig = {
   configuration: {
-    pageTitle: "Offchain Intelligence",
+    pageTitle: "Offchain Intelligence Explorer",
     pageTitleSuffix: "",
     enableSPA: true,
     enablePopovers: true,
@@ -100,7 +100,7 @@ const config: QuartzConfig = {
       }),
       Plugin.MapPage({footerConfig: {
         disclaimer: "The information contained in this map is sensitive. Unauthorized access, use, or distribution is strictly prohibited.",
-        copyright: "Crystal Intelligence. All rights reserved."
+        copyright: "(C) Offchain Info Limited. All rights reserved."
       }}),
     ],
   },

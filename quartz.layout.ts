@@ -8,8 +8,8 @@ export const sharedPageComponents: SharedLayout = {
   afterBody: [],
   footer: Component.Footer({
     links: {
-      "Crystal Intelligence": "https://crystalintelligence.com",
-      "Offchain Map": ""
+      "Offchain.Info": "https://offchain.info",
+      "Offchain Map": "/map"
     },
   }),
 }
