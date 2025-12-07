@@ -10,7 +10,8 @@ from countryinfo import CountryInfo
 
 # --- CONFIGURATION ---
 # We read these from Docker environment variables
-FUSEKI_DATASET_NAME = os.getenv("FUSEKI_DATASET_NAME", "offchain-knowledge")
+# Keep the dataset name aligned with the default Fuseki endpoint so initial sync can create it automatically.
+FUSEKI_DATASET_NAME = os.getenv("FUSEKI_DATASET_NAME", "knowledge-graph").strip()
 FUSEKI_ENDPOINT = os.getenv(
     "FUSEKI_ENDPOINT", f"http://localhost:3030/{FUSEKI_DATASET_NAME}/update"
 )
