@@ -71,47 +71,28 @@ def _load_compose(verbose: bool) -> Dict[str, Any]:
     return data
 
 
-def _extract_vault_mounts(compose: Dict[str, Any]) -> list[tuple[str | None, str | None]]:
-    mounts: list[tuple[str | None, str | None]] = []
-
+def _extract_volume_name(compose: Dict[str, Any]) -> str | None:
     services = compose.get("services", {}) or {}
     for service_key in ("watcher", "watcher-worker", "quartz"):
         service = services.get(service_key)
         if not isinstance(service, dict):
             continue
-
         for volume in service.get("volumes", []) or []:
             source: str | None = None
-            target: str | None = None
             if isinstance(volume, str):
-                parts = volume.split(":", 2)
-                source = parts[0] if parts else None
-                target = parts[1] if len(parts) > 1 else None
+                source = volume.split(":", 1)[0]
             elif isinstance(volume, dict):
                 source = volume.get("source")
-                target = volume.get("target") or volume.get("destination")
             if source and "vault" in source:
-                mounts.append((source, target))
-
-        env = service.get("environment", {}) if isinstance(service, dict) else {}
-        env_value = None
-        if isinstance(env, dict):
-            env_value = env.get("VAULT_ROOT")
-        elif isinstance(env, list):
-            for item in env:
-                if isinstance(item, str) and item.startswith("VAULT_ROOT="):
-                    env_value = item.partition("=")[2]
-                    break
-        if env_value:
-            mounts.append((None, env_value))
+                return source
 
     volumes = compose.get("volumes")
     if isinstance(volumes, dict):
         for volume_name in volumes:
             if "vault" in volume_name:
-                mounts.append((volume_name, None))
+                return volume_name
 
-    return mounts
+    return None
 
 
 def _docker_mountpoint(volume_name: str, verbose: bool) -> Path | None:
@@ -146,24 +127,19 @@ def _discover_default_roots(verbose: bool) -> list[Path]:
     if not compose:
         return []
 
-    roots: list[Path] = []
-    for volume_name, target in _extract_vault_mounts(compose):
-        if target:
-            candidate = _normalize_root(target)
-            if candidate.exists():
-                roots.append(candidate)
-            elif verbose:
-                print(f"⚠️ Ignoring unavailable mount target: {candidate}")
+    volume_name = _extract_volume_name(compose)
+    if volume_name is None:
+        if verbose:
+            print("⚠️ No vault-like volume found in docker-compose.yml")
+        return []
 
-        if volume_name:
-            mountpoint = _docker_mountpoint(volume_name, verbose)
-            if mountpoint is not None:
-                roots.append(mountpoint)
+    mountpoint = _docker_mountpoint(volume_name, verbose)
+    if mountpoint is None:
+        if verbose:
+            print(f"⚠️ Unable to resolve mount point for volume {volume_name}")
+        return []
 
-    if not roots and verbose:
-        print("⚠️ No vault-like volume or mount path found in docker-compose.yml")
-
-    return roots
+    return [mountpoint]
 
 STRING_FIELDS = {
     "title",
