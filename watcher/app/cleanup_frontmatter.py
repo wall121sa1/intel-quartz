@@ -17,7 +17,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from watcher.sanitizers import sanitize_frontmatter_list, sanitize_frontmatter_value
+from sanitizers import sanitize_frontmatter_list, sanitize_frontmatter_value
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
