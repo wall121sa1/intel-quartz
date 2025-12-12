@@ -9,8 +9,13 @@ import subprocess
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Dict, Tuple
+import sys
 
 import frontmatter
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from sanitizers import sanitize_frontmatter_list, sanitize_frontmatter_value
 
