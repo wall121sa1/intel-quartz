@@ -1,23 +1,14 @@
 import os
-import re
 from pathlib import Path
 
 from slugify import slugify
 
 from watcher.app.models import ArticleData
+from watcher.sanitizers import sanitize_frontmatter_list, sanitize_frontmatter_value
 
 class ObsidianStorage:
     def __init__(self, vault_root: str):
         self.vault_root = Path(vault_root)
-
-    @staticmethod
-    def _sanitize_frontmatter_value(value: str | None) -> str:
-        if value is None:
-            return ""
-
-        cleaned = re.sub(r"[^A-Za-z0-9 ]+", " ", str(value))
-        return " ".join(cleaned.split())
-
 
     def save_article(self, article: ArticleData):
         year = article.published_date.strftime("%Y")
@@ -43,18 +34,15 @@ class ObsidianStorage:
         def yaml_list(items):
             if not items:
                 return ""
-            sanitized_items = [
-                self._sanitize_frontmatter_value(item) for item in items if item
-            ]
-            sanitized_items = [item for item in sanitized_items if item]
+            sanitized_items = sanitize_frontmatter_list(items)
             # Returns:
             #   - New York
             #   - London
             return "\n".join([f"  - {item}" for item in sanitized_items])
 
-        safe_title = self._sanitize_frontmatter_value(article.title)
-        safe_source = self._sanitize_frontmatter_value(article.source_name)
-        safe_reliability = self._sanitize_frontmatter_value(article.source_reliability)
+        safe_title = sanitize_frontmatter_value(article.title)
+        safe_source = sanitize_frontmatter_value(article.source_name)
+        safe_reliability = sanitize_frontmatter_value(article.source_reliability)
 
         return f"""---
 title: "{safe_title}"
