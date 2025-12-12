@@ -4,7 +4,7 @@ from pathlib import Path
 from slugify import slugify
 
 from app.models import ArticleData
-from watcher.sanitizers import sanitize_frontmatter_list, sanitize_frontmatter_value
+from sanitizers import sanitize_frontmatter_list, sanitize_frontmatter_value
 
 class ObsidianStorage:
     def __init__(self, vault_root: str):

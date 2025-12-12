@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import argparse
-import importlib
+from importlib import import_module, util
 import json
 import os
 import subprocess
@@ -17,7 +17,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from watcher.sanitizers import sanitize_frontmatter_list, sanitize_frontmatter_value
+from sanitizers import sanitize_frontmatter_list, sanitize_frontmatter_value
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -44,11 +44,11 @@ def _normalize_root(path_str: str) -> Path:
 
 
 def _yaml_module():
-    spec = importlib.util.find_spec("yaml")
+    spec = util.find_spec("yaml")
     if spec is None:
         return None
 
-    return importlib.import_module("yaml")
+    return import_module("yaml")
 
 
 def _compose_candidates() -> list[Path]:
