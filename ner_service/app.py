@@ -32,6 +32,14 @@ def _normalize_entity_text(text: str) -> str:
     return " ".join(text.split())
 
 
+def _sanitize_entity_text(text: str) -> str:
+    """Strip special characters and filler words that break frontmatter."""
+
+    cleaned = re.sub(r"[^A-Za-z0-9 ]+", " ", text)
+    cleaned = re.sub(r"\bthe\b", " ", cleaned, flags=re.IGNORECASE)
+    return " ".join(cleaned.split())
+
+
 def _entity_regex_pattern(text: str) -> str:
     """Build a whitespace-tolerant regex for the original entity text."""
 
@@ -177,23 +185,25 @@ def process(req: ProcessRequest, request: Request) -> Dict[str, Any]:
 
     for ent in doc.ents:
         normalized = _normalize_entity_text(ent.text)
-        if not normalized:
+        sanitized = _sanitize_entity_text(normalized)
+        if not sanitized:
             continue
 
         if ent.label_ in ("ORG",):
-            orgs.append(normalized)
+            orgs.append(sanitized)
         elif ent.label_ in ("PERSON",):
-            people.append(normalized)
+            people.append(sanitized)
         elif ent.label_ in ("GPE", "LOC"):
-            locs.append(normalized)
+            locs.append(sanitized)
         elif ent.label_ in ("EVENT",):
-            events.append(normalized)
+            events.append(sanitized)
 
     lower_text = req.text.lower()
     for tag in rules_snapshot.get("tags", []):
         normalized_tag = _normalize_entity_text(tag)
-        if normalized_tag and normalized_tag.lower() in lower_text:
-            tags.append(normalized_tag)
+        sanitized_tag = _sanitize_entity_text(normalized_tag)
+        if sanitized_tag and sanitized_tag.lower() in lower_text:
+            tags.append(sanitized_tag)
 
     allowed_labels = {"ORG", "PERSON", "GPE", "LOC", "EVENT"}
     annotated = req.text

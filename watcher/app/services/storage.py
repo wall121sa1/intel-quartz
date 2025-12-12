@@ -1,10 +1,11 @@
 import json
-import re
 from pathlib import Path
 
 import boto3
 from slugify import slugify
 from flask import current_app
+
+from watcher.sanitizers import sanitize_frontmatter_list, sanitize_frontmatter_value
 
 class StorageService:
     @staticmethod
@@ -117,20 +118,15 @@ class StorageService:
             if not csv_string:
                 return ""
             items = csv_string.split(',')
-            sanitized = [
-                StorageService._sanitize_frontmatter_value(item.strip())
-                for item in items
-                if item.strip()
-            ]
-            sanitized = [item for item in sanitized if item]
+            sanitized = sanitize_frontmatter_list(items)
             return "\n".join([f"  - {item}" for item in sanitized])
 
-        safe_title = StorageService._sanitize_frontmatter_value(article.title)
-        safe_feed_name = StorageService._sanitize_frontmatter_value(feed_name)
-        safe_reliability = StorageService._sanitize_frontmatter_value(reliability)
-        safe_country = StorageService._sanitize_frontmatter_value(country)
-        safe_language = StorageService._sanitize_frontmatter_value(article.language)
-        safe_feed_type = StorageService._sanitize_frontmatter_value(feed_type or '')
+        safe_title = sanitize_frontmatter_value(article.title)
+        safe_feed_name = sanitize_frontmatter_value(feed_name)
+        safe_reliability = sanitize_frontmatter_value(reliability)
+        safe_country = sanitize_frontmatter_value(country)
+        safe_language = sanitize_frontmatter_value(article.language)
+        safe_feed_type = sanitize_frontmatter_value(feed_type or '')
 
         md_output = f"""---
 title: "{safe_title}"
@@ -191,13 +187,4 @@ link: {article.url}
     @staticmethod
     def _csv_to_clean_list(csv_string):
         values = StorageService._csv_to_list(csv_string)
-        cleaned = [StorageService._sanitize_frontmatter_value(item) for item in values]
-        return [item for item in cleaned if item]
-
-    @staticmethod
-    def _sanitize_frontmatter_value(value: str | None) -> str:
-        if value is None:
-            return ""
-
-        cleaned = re.sub(r"[^A-Za-z0-9 ]+", " ", str(value))
-        return " ".join(cleaned.split())
+        return sanitize_frontmatter_list(values)
