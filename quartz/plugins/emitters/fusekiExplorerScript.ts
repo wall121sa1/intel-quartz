@@ -25,52 +25,54 @@ const buildPrefixes = (base) => [
   'PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>',
   'PREFIX geo: <http://www.w3.org/2003/01/geo/wgs84_pos#>',
   'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>'
-].join('\n')
+].join('\\n')
 
 const queryTemplates = {
-  mentionsByEntity: (p) => `${'${'}buildPrefixes(p.base)${'}'}
+  mentionsByEntity: (p) => \`\${buildPrefixes(p.base)}
 SELECT ?report ?title ?date ?entityLabel ?placeLabel ?lat ?long
 WHERE {
   ?report rdf:type ci:class/Article ;
           ci:prop/title ?title ;
           ci:prop/mentions ?entity .
   ?entity rdfs:label ?entityLabel .
-    FILTER(CONTAINS(LCASE(?entityLabel), LCASE(${'${'}JSON.stringify(p.entity)${'}'})))
+    FILTER(CONTAINS(LCASE(?entityLabel), LCASE(\${JSON.stringify(p.entity)})))
   OPTIONAL { ?report ci:prop/date ?date }
   OPTIONAL {
     ?place ci:prop/mentionedIn ?report ;
            rdfs:label ?placeLabel .
     OPTIONAL { ?place geo:lat ?lat ; geo:long ?long }
   }
-  ${'${'}p.startDate || p.endDate ? `\n  FILTER(${ '${'}buildDateFilters('date', p.startDate, p.endDate)${'}' })` : ''${'}'}
+  \${p.startDate || p.endDate ? \`\\n  FILTER(\${buildDateFilters('date', p.startDate, p.endDate)})\` : ''}
 }
 ORDER BY DESC(?date)
-LIMIT ${'${'}p.limit || 200${'}'}`,
-  entityNearLocation: (p) => `${'${'}buildPrefixes(p.base)${'}'}
+LIMIT \${p.limit || 200}\`,
+
+  entityNearLocation: (p) => \`\${buildPrefixes(p.base)}
 SELECT ?report ?title ?date ?entityLabel ?placeLabel ?lat ?long
 WHERE {
   ?report rdf:type ci:class/Article ;
           ci:prop/title ?title ;
           ci:prop/mentions ?entity .
   ?entity rdfs:label ?entityLabel .
-    FILTER(CONTAINS(LCASE(?entityLabel), LCASE(${'${'}JSON.stringify(p.entity)${'}'})))
+    FILTER(CONTAINS(LCASE(?entityLabel), LCASE(\${JSON.stringify(p.entity)})))
   ?place ci:prop/mentionedIn ?report ;
          rdfs:label ?placeLabel .
-  FILTER(CONTAINS(LCASE(?placeLabel), LCASE(${'${'}JSON.stringify(p.place)${'}'})))
+  FILTER(CONTAINS(LCASE(?placeLabel), LCASE(\${JSON.stringify(p.place)})))
   OPTIONAL { ?place geo:lat ?lat ; geo:long ?long }
   OPTIONAL { ?report ci:prop/date ?date }
-  ${'${'}p.startDate || p.endDate ? `\n  FILTER(${ '${'}buildDateFilters('date', p.startDate, p.endDate)${'}' })` : ''${'}'}
+  \${p.startDate || p.endDate ? \`\\n  FILTER(\${buildDateFilters('date', p.startDate, p.endDate)})\` : ''}
 }
 ORDER BY DESC(?date)
-LIMIT ${'${'}p.limit || 200${'}'}`,
-  relationshipHops: (p) => `${'${'}buildPrefixes(p.base)${'}'}
+LIMIT \${p.limit || 200}\`,
+
+  relationshipHops: (p) => \`\${buildPrefixes(p.base)}
 SELECT DISTINCT ?report ?title ?date ?entityLabel ?linkedLabel ?placeLabel ?lat ?long
 WHERE {
   ?report rdf:type ci:class/Article ;
           ci:prop/title ?title ;
           ci:prop/mentions ?entity .
   ?entity rdfs:label ?entityLabel .
-    FILTER(CONTAINS(LCASE(?entityLabel), LCASE(${'${'}JSON.stringify(p.entity)${'}'})))
+    FILTER(CONTAINS(LCASE(?entityLabel), LCASE(\${JSON.stringify(p.entity)})))
 
   OPTIONAL {
     ?report ci:prop/mentions ?linkedEntity .
@@ -85,16 +87,16 @@ WHERE {
   }
 
   OPTIONAL { ?report ci:prop/date ?date }
-  ${'${'}p.startDate || p.endDate ? `\n  FILTER(${ '${'}buildDateFilters('date', p.startDate, p.endDate)${'}' })` : ''${'}'}
+  \${p.startDate || p.endDate ? \`\\n  FILTER(\${buildDateFilters('date', p.startDate, p.endDate)})\` : ''}
 }
 ORDER BY DESC(?date)
-LIMIT ${'${'}p.limit || 200${'}'}`
+LIMIT \${p.limit || 200}\`
 }
 
 const buildDateFilters = (field, start, end) => {
   const clauses = []
-  if (start) clauses.push(`?${'${'}field${'}'} >= ${'${'}JSON.stringify(start)${'}'}^^xsd:date`)
-  if (end) clauses.push(`?${'${'}field${'}'} <= ${'${'}JSON.stringify(end)${'}'}^^xsd:date`)
+  if (start) clauses.push(\`?\${field} >= \${JSON.stringify(start)}^^xsd:date\`)
+  if (end) clauses.push(\`?\${field} <= \${JSON.stringify(end)}^^xsd:date\`)
   return clauses.length ? clauses.join(' && ') : 'true'
 }
 
@@ -134,16 +136,16 @@ const renderList = (records) => {
     return
   }
 
-  target.innerHTML = records.map(r => `
+  target.innerHTML = records.map(r => \`
     <article class="fuseki-card">
-      <h3 class="fuseki-card__title">${'${'}r.title${'}'}</h3>
-      <div class="fuseki-card__meta">${'${'}r.entity || 'Entity unknown'${'}'}${'${'}r.place ? ' · ' + r.place : ''${'}'}${'${'}r.date ? ' · ' + r.date : ''${'}'}</div>
+      <h3 class="fuseki-card__title">\${r.title}</h3>
+      <div class="fuseki-card__meta">\${r.entity || 'Entity unknown'}\${r.place ? ' · ' + r.place : ''}\${r.date ? ' · ' + r.date : ''}</div>
       <div class="fuseki-chip-row">
-        ${'${'}r.linked ? `<span class="fuseki-chip">Co-mentioned: ${'${'}r.linked${'}'}</span>` : ''${'}'}
-        ${'${'}r.report ? `<a class="fuseki-chip" href="${'${'}r.report${'}'}" target="_blank" rel="noreferrer">Open source</a>` : ''${'}'}
+        \${r.linked ? \`<span class="fuseki-chip">Co-mentioned: \${r.linked}</span>\` : ''}
+        \${r.report ? \`<a class="fuseki-chip" href="\${r.report}" target="_blank" rel="noreferrer">Open source</a>\` : ''}
       </div>
     </article>
-  `).join('')
+  \`).join('')
 }
 
 let fusekiMap
@@ -176,13 +178,13 @@ const renderMap = async (records) => {
 
   points.forEach(p => {
     const marker = L.marker([p.lat, p.long])
-    marker.bindPopup(`
+    marker.bindPopup(\`
       <div class="map-popup">
-        <strong>${'${'}p.title${'}'}</strong><br/>
-        ${'${'}p.place || 'Unknown place'${'}'}<br/>
-        ${'${'}p.date || ''${'}'}
+        <strong>\${p.title}</strong><br/>
+        \${p.place || 'Unknown place'}<br/>
+        \${p.date || ''}
       </div>
-    `)
+    \`)
     fusekiMarkers.addLayer(marker)
   })
 
@@ -239,7 +241,7 @@ const initExplorer = () => {
 
       if (!response.ok) {
         const text = await response.text()
-        throw new Error(`${'${'}response.status${'}'} ${'${'}response.statusText${'}'}: ${'${'}text.slice(0, 240)${'}'}`)
+        throw new Error(\`\${response.status} \${response.statusText}: \${text.slice(0, 240)}\`)
       }
 
       const payload = await response.json()
