@@ -285,17 +285,86 @@ def _sanitize_metadata(metadata: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
     return changed, updated
 
 
+def _repair_frontmatter_lines(lines: list[str], verbose: bool) -> list[str]:
+    """Merge orphaned lines that likely belong to the previous list item.
+
+    A stray newline in a list item can produce an unindented line that breaks
+    YAML parsing (e.g., ``Toobit`` on its own line). When a non-empty line
+    doesn't look like a mapping key or list entry but follows a list item, we
+    join it to the prior line with a space to restore a single value.
+    """
+
+    repaired: list[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if (
+            stripped
+            and ":" not in line
+            and not line.lstrip().startswith("-")
+            and repaired
+            and repaired[-1].lstrip().startswith("-")
+        ):
+            if verbose:
+                print(
+                    "🩹 Reattaching orphan line to previous list item: "
+                    f"'{stripped}'"
+                )
+            repaired[-1] = repaired[-1].rstrip() + " " + stripped
+            continue
+
+        repaired.append(line)
+
+    return repaired
+
+
+def _repair_frontmatter_text(content: str, verbose: bool) -> str | None:
+    """Attempt to repair malformed frontmatter caused by stray newlines."""
+
+    lines = content.splitlines()
+    start = next((idx for idx, line in enumerate(lines) if line.strip() == "---"), None)
+    if start is None:
+        return None
+
+    end = next(
+        (idx for idx in range(start + 1, len(lines)) if lines[idx].strip() == "---"),
+        None,
+    )
+    if end is None:
+        return None
+
+    frontmatter_lines = lines[start + 1 : end]
+    repaired_lines = _repair_frontmatter_lines(frontmatter_lines, verbose)
+    if repaired_lines == frontmatter_lines:
+        return None
+
+    repaired_content = lines[: start + 1] + repaired_lines + lines[end:]
+    return "\n".join(repaired_content) + ("\n" if content.endswith("\n") else "")
+
+
 def _process_file(path: Path, dry_run: bool, verbose: bool) -> bool:
     """Sanitize a single markdown file. Returns True if modified."""
+    raw_text = path.read_text(encoding="utf-8")
+    repaired_text: str | None = None
+
     try:
-        post = frontmatter.load(path)
+        post = frontmatter.loads(raw_text)
     except Exception as exc:  # noqa: BLE001
-        if verbose:
-            print(f"⚠️ Skipping {path}: {exc}")
-        return False
+        repaired_text = _repair_frontmatter_text(raw_text, verbose)
+        if repaired_text is None:
+            if verbose:
+                print(f"⚠️ Skipping {path}: {exc}")
+            return False
+
+        try:
+            post = frontmatter.loads(repaired_text)
+        except Exception as repair_exc:  # noqa: BLE001
+            if verbose:
+                print(f"⚠️ Skipping {path} after repair attempt: {repair_exc}")
+            return False
 
     changed, new_metadata = _sanitize_metadata(post.metadata or {})
-    if not changed:
+    if not changed and repaired_text is None:
         if verbose:
             print(f"✅ {path} already clean")
         return False
