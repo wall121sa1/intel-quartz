@@ -127,6 +127,8 @@ class StorageService:
         safe_country = sanitize_frontmatter_value(country)
         safe_language = sanitize_frontmatter_value(article.language)
         safe_feed_type = sanitize_frontmatter_value(feed_type or '')
+        # Robustly strip newlines from the URL to prevent it from breaking the YAML block
+        safe_link = str(article.url or "").strip().replace("\n", "").replace("\r", "")
 
         md_output = f"""---
 title: "{safe_title}"
@@ -147,7 +149,7 @@ locations:
 {yaml_list(article.locations)}
 events:
 {yaml_list(article.events)}
-link: {article.url}
+link: {safe_link}
 ---
 
 # {article.title}
