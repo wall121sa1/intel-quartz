@@ -1,3 +1,5 @@
+"""Simple Obsidian vault writer that keeps frontmatter Quartz-friendly."""
+
 import os
 from pathlib import Path
 
@@ -40,14 +42,17 @@ class ObsidianStorage:
             #   - London
             return "\n".join([f"  - {item}" for item in sanitized_items])
 
+        def format_datetime(value):
+            return value.isoformat(timespec="seconds")
+
         safe_title = sanitize_frontmatter_value(article.title)
         safe_source = sanitize_frontmatter_value(article.source_name)
         safe_reliability = sanitize_frontmatter_value(article.source_reliability)
 
         return f"""---
 title: "{safe_title}"
-date: {article.published_date.strftime('%Y-%m-%d %H:%M')}
-added: {article.added_date.strftime('%Y-%m-%d %H:%M')}
+date: {format_datetime(article.published_date)}
+added: {format_datetime(article.added_date)}
 source: "{safe_source}"
 reliability: "{safe_reliability}"
 organizations:
