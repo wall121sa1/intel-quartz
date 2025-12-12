@@ -1,5 +1,6 @@
 requests
-python-frontmatter
+# Avoid the broken 1.0.0 release which is missing its VERSION metadata file.
+python-frontmatter>=1.0.1,<2.0
 geopy
 countryinfo
 psycopg[binary]
