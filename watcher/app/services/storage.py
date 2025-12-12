@@ -1,3 +1,5 @@
+"""Storage helpers for writing cleaned Markdown and entity sidecars."""
+
 import json
 from pathlib import Path
 
@@ -114,6 +116,9 @@ class StorageService:
 
     @staticmethod
     def _format_markdown(article, feed_name, reliability, feed_type, country):
+        def format_datetime(value):
+            return value.isoformat(timespec="seconds")
+
         def yaml_list(csv_string):
             if not csv_string:
                 return ""
@@ -132,8 +137,8 @@ class StorageService:
 
         md_output = f"""---
 title: "{safe_title}"
-date: {article.pub_date.strftime('%Y-%m-%d %H:%M')}
-added: {article.added_date.strftime('%Y-%m-%d %H:%M')}
+date: {format_datetime(article.pub_date)}
+added: {format_datetime(article.added_date)}
 source: "{safe_feed_name}"
 reliability: "{safe_reliability}"
 country: "{safe_country}"
