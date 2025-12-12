@@ -1,40 +1,42 @@
-"""Utilities for cleaning frontmatter data to keep YAML compatible."""
+"""Helpers to keep frontmatter fields Quartz-friendly and Unicode-safe."""
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Iterable
 from typing import List
 
 __all__ = ["sanitize_frontmatter_value", "sanitize_frontmatter_list"]
 
-_THE_PATTERN = re.compile(r"\bthe\b", re.IGNORECASE)
-# \s+ matches any whitespace characters (space, tab, newline, return, formfeed)
+# Collapse any run of whitespace (spaces, tabs, or newlines) to a single space
 _WHITESPACE_PATTERN = re.compile(r"\s+")
-_DISALLOWED_PATTERN = re.compile(r"[^A-Za-z0-9 ]+")
+
+# Allow common punctuation that won't break YAML while preserving multilingual text
+_ALLOWED_PUNCTUATION = {"-", "_", ",", ".", "'", "’", "(", ")", ":", "/"}
+
+
+def _is_allowed_character(character: str) -> bool:
+    """Return True if the character is safe to keep in frontmatter values."""
+
+    return character.isalnum() or character.isspace() or character in _ALLOWED_PUNCTUATION
 
 
 def sanitize_frontmatter_value(value: str | None) -> str:
-    """Remove special characters, newlines, and filler words from a frontmatter value."""
+    """Normalize a frontmatter value while preserving non-Latin characters."""
+
     if value is None:
         return ""
 
-    text = str(value)
-    
-    # 1. Collapse ALL whitespace (newlines, tabs) into a single space
-    text = _WHITESPACE_PATTERN.sub(" ", text)
+    normalized = unicodedata.normalize("NFKC", str(value))
+    normalized = _WHITESPACE_PATTERN.sub(" ", normalized)
 
-    # 2. Remove disallowed characters (keep only alphanumeric and space)
-    cleaned = _DISALLOWED_PATTERN.sub(" ", text)
-    
-    # 3. Remove 'the' word to reduce duplicates
-    cleaned = _THE_PATTERN.sub(" ", cleaned)
-    
-    # 4. Trim leading/trailing spaces
+    cleaned = "".join(ch for ch in normalized if _is_allowed_character(ch))
     return " ".join(cleaned.split())
 
 
 def sanitize_frontmatter_list(items: Iterable[str] | None) -> List[str]:
     """Sanitize an iterable of frontmatter items and drop empties."""
+
     if not items:
         return []
 

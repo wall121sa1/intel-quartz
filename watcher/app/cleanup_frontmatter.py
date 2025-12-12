@@ -1,4 +1,4 @@
-"""Clean existing markdown frontmatter to keep Quartz compatible."""
+"""Clean existing markdown frontmatter to keep Quartz compatible and readable."""
 from __future__ import annotations
 
 import argparse
@@ -8,6 +8,7 @@ import os
 import subprocess
 import re
 from collections.abc import Iterable
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Tuple
 import sys
@@ -22,17 +23,68 @@ from sanitizers import sanitize_frontmatter_list, sanitize_frontmatter_value
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
+# Date strings should be normalized to an ISO-8601 style so Quartz can parse them reliably
+DATE_FIELDS = {
+    "date",
+    "added",
+    "publishDate",
+    "published",
+    "created",
+    "updated",
+    "modified",
+    "lastmod",
+}
+DATE_FORMATS = ["%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"]
+
 # Regex helpers for the rescue operation
 KEY_PATTERN = re.compile(r"^(\s*)([a-zA-Z0-9_-]+):\s*(.*)$")
 LIST_PATTERN = re.compile(r"^(\s*-\s+)(.*)$")
 
 # Keys that MUST NOT be sanitized (preserve dates, urls, paths)
-PRESERVE_KEYS = {
-    "date", "publishDate", "published", "created", "updated", "modified", "lastmod", "added",
+PRESERVE_KEYS = DATE_FIELDS | {
     "link", "url", "permalink", "canonical",
     "image", "socialImage", "cover", "icon", "logo",
-    "id", "uuid", "guid"
+    "id", "uuid", "guid",
 }
+
+
+def _normalize_date_value(raw_value: Any) -> Tuple[bool, Any]:
+    """Attempt to convert an arbitrary value into a clean ISO-8601 timestamp."""
+
+    if raw_value is None:
+        return False, raw_value
+
+    if isinstance(raw_value, (int, float)):
+        try:
+            dt_value = datetime.fromtimestamp(raw_value)
+        except Exception:
+            return False, raw_value
+    elif isinstance(raw_value, datetime):
+        dt_value = raw_value
+    elif isinstance(raw_value, str):
+        candidate = raw_value.strip()
+        if not candidate:
+            return False, raw_value
+
+        # Accept common Quartz timestamp strings like "2024-05-01 13:00"
+        for fmt in DATE_FORMATS:
+            try:
+                dt_value = datetime.strptime(candidate, fmt)
+                break
+            except ValueError:
+                dt_value = None
+
+        if dt_value is None:
+            iso_candidate = candidate.replace("Z", "+00:00")
+            try:
+                dt_value = datetime.fromisoformat(iso_candidate)
+            except ValueError:
+                return False, raw_value
+    else:
+        return False, raw_value
+
+    normalized = dt_value.isoformat(timespec="seconds")
+    return normalized != raw_value, normalized
 
 def _normalize_root(path_str: str) -> Path:
     """Convert the provided path to an absolute ``Path``."""
@@ -281,6 +333,14 @@ def _sanitize_metadata(metadata: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
             updated[key] = sanitized_list
             changed = True
 
+    for key in DATE_FIELDS:
+        if key not in updated:
+            continue
+        dt_changed, normalized_date = _normalize_date_value(updated.get(key))
+        if dt_changed:
+            updated[key] = normalized_date
+            changed = True
+
     return changed, updated
 
 
@@ -424,7 +484,7 @@ def _process_file(path: Path, dry_run: bool, verbose: bool) -> bool:
             if dry_run:
                 print(f"DRY RUN: Would update {path}")
                 return True
-            path.write_text(frontmatter.dumps(post), encoding="utf-8")
+            path.write_text(frontmatter.dumps(post, allow_unicode=True), encoding="utf-8")
             print(f"🧹 Updated {path}")
             return True
         else:
