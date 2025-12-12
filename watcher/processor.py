@@ -1,5 +1,5 @@
 import spacy
-from watcher.app.models import ArticleData
+from app.models import ArticleData
 
 # Load the model once
 nlp = spacy.load("en_core_web_sm")
