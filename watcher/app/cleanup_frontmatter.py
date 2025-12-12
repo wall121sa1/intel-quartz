@@ -23,9 +23,16 @@ from sanitizers import sanitize_frontmatter_list, sanitize_frontmatter_value
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 # Regex helpers for the rescue operation
-KEY_PATTERN = re.compile(r"^\s*[a-zA-Z0-9_-]+\s*:")
-LIST_PATTERN = re.compile(r"^\s*-\s")
+KEY_PATTERN = re.compile(r"^(\s*)([a-zA-Z0-9_-]+):\s*(.*)$")
+LIST_PATTERN = re.compile(r"^(\s*-\s+)(.*)$")
 
+# Keys that MUST NOT be sanitized (preserve dates, urls, paths)
+PRESERVE_KEYS = {
+    "date", "publishDate", "published", "created", "updated", "modified", "lastmod", "added",
+    "link", "url", "permalink", "canonical",
+    "image", "socialImage", "cover", "icon", "logo",
+    "id", "uuid", "guid"
+}
 
 def _normalize_root(path_str: str) -> Path:
     """Convert the provided path to an absolute ``Path``."""
@@ -278,7 +285,10 @@ def _sanitize_metadata(metadata: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
 
 
 def _rescue_malformed_file(path: Path, dry_run: bool, verbose: bool) -> bool:
-    """Attempts to fix files that crash the YAML parser (e.g. newlines in list items)."""
+    """
+    Attempts to fix files that crash the YAML parser.
+    It handles broken newlines AND sanitizes values explicitly using regex.
+    """
     try:
         content = path.read_text(encoding="utf-8")
         lines = content.splitlines()
@@ -296,32 +306,74 @@ def _rescue_malformed_file(path: Path, dry_run: bool, verbose: bool) -> bool:
         new_fm_lines.append(lines[0])  # keep start fence
         
         changed = False
+        current_key = None
 
         # Iterate strictly inside the frontmatter block
         for i in range(1, end_idx):
             line = lines[i]
+            # Replace tabs with spaces immediately to prevent indentation errors
+            line = line.replace("\t", "  ")
             stripped = line.strip()
 
             if not stripped:
                 new_fm_lines.append(line)
                 continue
 
-            # Heuristic: Valid YAML lines in frontmatter are usually:
-            # 1. Keys: "title: ..."
-            # 2. List items: "- value" or "  - value"
-            # 3. Comments: "# ..."
-            is_key = KEY_PATTERN.match(line)
-            is_list = LIST_PATTERN.match(line)
+            # Check matches
+            key_match = KEY_PATTERN.match(line)
+            list_match = LIST_PATTERN.match(line)
             is_comment = stripped.startswith("#")
 
-            if is_key or is_list or is_comment:
+            if key_match:
+                # It is a key: value line
+                indent = key_match.group(1)   # "  " or ""
+                key = key_match.group(2)      # "title"
+                raw_val = key_match.group(3)  # "Some Value" or ""
+
+                current_key = key
+
+                # Check if we should preserve this key's value (e.g. date, link)
+                if key in PRESERVE_KEYS:
+                    # Just strip whitespace, do NOT remove characters
+                    clean_val = raw_val.strip()
+                else:
+                    # Sanitize (remove special chars)
+                    clean_val = sanitize_frontmatter_value(raw_val)
+                
+                new_line = f"{indent}{key}: {clean_val}"
+                new_fm_lines.append(new_line)
+
+                if new_line != line:
+                    changed = True
+
+            elif list_match:
+                # It is a list item: "  - value"
+                indent_dash = list_match.group(1) # "  - "
+                raw_val = list_match.group(2)     # "@cowgame1"
+                
+                # Use current_key to decide logic
+                if current_key in PRESERVE_KEYS:
+                     clean_val = raw_val.strip()
+                else:
+                     clean_val = sanitize_frontmatter_value(raw_val)
+                
+                new_line = f"{indent_dash}{clean_val}"
+                new_fm_lines.append(new_line)
+                
+                if new_line != line:
+                    changed = True
+
+            elif is_comment:
                 new_fm_lines.append(line)
+            
             else:
-                # If it's none of the above, it's likely a broken newline from a previous value.
-                # We merge it into the previous line with a space.
-                # Example:
-                #   - ValuePart1
-                #   ValuePart2  <-- We are here
+                # It's a broken newline (orphan value). 
+                # We merge it to the previous line.
+                
+                if current_key in PRESERVE_KEYS:
+                    clean_fragment = stripped
+                else:
+                    clean_fragment = sanitize_frontmatter_value(stripped)
                 
                 # Find the last non-empty line we added
                 last_idx = len(new_fm_lines) - 1
@@ -329,25 +381,28 @@ def _rescue_malformed_file(path: Path, dry_run: bool, verbose: bool) -> bool:
                     last_idx -= 1
 
                 if last_idx > 0:
-                    new_fm_lines[last_idx] = new_fm_lines[last_idx] + " " + stripped
+                    new_fm_lines[last_idx] = new_fm_lines[last_idx] + " " + clean_fragment
                     changed = True
                     if verbose:
-                        print(f"   ↳ Merged broken line in {path.name}: '{stripped}'")
+                        print(f"   ↳ Merged broken line in {path.name} (Key: {current_key}): '{stripped}'")
                 else:
-                    new_fm_lines.append(line)
+                    new_fm_lines.append(clean_fragment)
 
         if not changed:
-            return False
+            # If parsing failed initially, but we didn't change anything, 
+            # we might just return False to avoid loop. 
+            # But tab replacements might count as change.
+            pass
 
         # Rebuild file
         new_content = "\n".join(new_fm_lines + lines[end_idx:])
         
         if dry_run:
-            print(f"DRY RUN: Rescued malformed YAML in {path}")
+            print(f"DRY RUN: Rescued & Sanitized malformed YAML in {path}")
             return True
 
         path.write_text(new_content, encoding="utf-8")
-        print(f"🚑 Rescued malformed YAML in {path}")
+        print(f"🚑 Rescued & Sanitized malformed YAML in {path}")
         return True
 
     except Exception as e:
@@ -358,40 +413,32 @@ def _rescue_malformed_file(path: Path, dry_run: bool, verbose: bool) -> bool:
 
 def _process_file(path: Path, dry_run: bool, verbose: bool) -> bool:
     """Sanitize a single markdown file. Returns True if modified."""
+    
+    # 1. Try standard parsing first
     try:
         post = frontmatter.load(path)
+        
+        changed, new_metadata = _sanitize_metadata(post.metadata or {})
+        if changed:
+            post.metadata = new_metadata
+            if dry_run:
+                print(f"DRY RUN: Would update {path}")
+                return True
+            path.write_text(frontmatter.dumps(post), encoding="utf-8")
+            print(f"🧹 Updated {path}")
+            return True
+        else:
+            if verbose:
+                print(f"✅ {path} clean")
+            return False
+
     except Exception as exc:  # noqa: BLE001
         if verbose:
             print(f"⚠️ Parse failed for {path.name}: {exc}. Attempting rescue...")
         
-        # Trigger rescue mode if parsing failed
+        # 2. Trigger rescue mode if parsing failed
         rescued = _rescue_malformed_file(path, dry_run, verbose)
-        if rescued:
-            # If we rescued it, try to load it again to do the standard sanitization
-            if not dry_run:
-                try:
-                    post = frontmatter.load(path)
-                except Exception:
-                    return True # We fixed the structure, but maybe content is still weird. Stop here.
-            else:
-                return True
-        else:
-            return False
-
-    changed, new_metadata = _sanitize_metadata(post.metadata or {})
-    if not changed:
-        if verbose:
-            print(f"✅ {path} clean")
-        return False
-
-    post.metadata = new_metadata
-    if dry_run:
-        print(f"DRY RUN: Would update {path}")
-        return True
-
-    path.write_text(frontmatter.dumps(post), encoding="utf-8")
-    print(f"🧹 Updated {path}")
-    return True
+        return rescued
 
 
 def main() -> None:
