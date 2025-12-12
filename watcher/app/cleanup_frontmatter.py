@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
-import os
 import subprocess
 from collections.abc import Iterable
 from pathlib import Path
@@ -14,17 +13,15 @@ import frontmatter
 
 from watcher.sanitizers import sanitize_frontmatter_list, sanitize_frontmatter_value
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = Path(__file__).resolve().parent.parent
+COMPOSE_PATH = REPO_ROOT / "watcher" / "docker-compose.yml"
 
 
 def _normalize_root(path_str: str) -> Path:
     """Convert the provided path to an absolute ``Path``.
 
     UNC-style paths (e.g., ``\\\\wsl.localhost\\...``) are converted to
-    forward-slash notation so they can be traversed on Linux hosts. Relative
-    paths are resolved against the current working directory to work both on
-    the host and inside the Docker container image where ``/app`` is the
-    default workdir.
+    forward-slash notation so they can be traversed on Linux hosts.
     """
 
     normalized_str = path_str
@@ -35,7 +32,7 @@ def _normalize_root(path_str: str) -> Path:
     if candidate.is_absolute():
         return candidate
 
-    return (Path.cwd() / candidate).resolve()
+    return (REPO_ROOT / candidate).resolve()
 
 
 def _yaml_module():
@@ -46,40 +43,6 @@ def _yaml_module():
     return importlib.import_module("yaml")
 
 
-def _compose_candidates() -> list[Path]:
-    candidates = [
-        Path.cwd() / "docker-compose.yml",
-        Path.cwd() / "docker-compose.yaml",
-        SCRIPT_DIR / "docker-compose.yml",
-        SCRIPT_DIR / "docker-compose.yaml",
-        SCRIPT_DIR.parent / "docker-compose.yml",
-        SCRIPT_DIR.parent / "docker-compose.yaml",
-        SCRIPT_DIR.parent / "watcher" / "docker-compose.yml",
-        SCRIPT_DIR.parent / "watcher" / "docker-compose.yaml",
-    ]
-
-    seen: set[Path] = set()
-    unique_candidates: list[Path] = []
-    for path in candidates:
-        if path not in seen:
-            unique_candidates.append(path)
-            seen.add(path)
-    return unique_candidates
-
-
-def _find_compose_file(verbose: bool) -> Path | None:
-    for candidate in _compose_candidates():
-        if candidate.exists():
-            return candidate
-
-    if verbose:
-        print(
-            "⚠️ Unable to locate docker-compose.yml near the current working "
-            "directory or script location; skipping compose-based defaults."
-        )
-    return None
-
-
 def _load_compose(verbose: bool) -> Dict[str, Any]:
     yaml = _yaml_module()
     if yaml is None:
@@ -87,12 +50,13 @@ def _load_compose(verbose: bool) -> Dict[str, Any]:
             print("⚠️ PyYAML not installed; unable to load docker-compose.yml for defaults")
         return {}
 
-    compose_path = _find_compose_file(verbose)
-    if compose_path is None:
+    if not COMPOSE_PATH.exists():
+        if verbose:
+            print(f"⚠️ Missing docker-compose.yml at {COMPOSE_PATH}")
         return {}
 
     try:
-        content = compose_path.read_text(encoding="utf-8")
+        content = COMPOSE_PATH.read_text(encoding="utf-8")
         data = yaml.safe_load(content) or {}
     except Exception as exc:  # noqa: BLE001
         if verbose:
@@ -107,63 +71,28 @@ def _load_compose(verbose: bool) -> Dict[str, Any]:
     return data
 
 
-def _extract_vault_mounts(compose: Dict[str, Any]) -> list[tuple[str | None, str | None]]:
-    mounts: list[tuple[str | None, str | None]] = []
-
+def _extract_volume_name(compose: Dict[str, Any]) -> str | None:
     services = compose.get("services", {}) or {}
     for service_key in ("watcher", "watcher-worker", "quartz"):
         service = services.get(service_key)
         if not isinstance(service, dict):
             continue
-
         for volume in service.get("volumes", []) or []:
             source: str | None = None
-            target: str | None = None
             if isinstance(volume, str):
-                parts = volume.split(":", 2)
-                source = parts[0] if parts else None
-                target = parts[1] if len(parts) > 1 else None
+                source = volume.split(":", 1)[0]
             elif isinstance(volume, dict):
                 source = volume.get("source")
-                target = volume.get("target") or volume.get("destination")
             if source and "vault" in source:
-                mounts.append((source, target))
-
-        env = service.get("environment", {}) if isinstance(service, dict) else {}
-        env_value = None
-        if isinstance(env, dict):
-            env_value = env.get("VAULT_ROOT")
-        elif isinstance(env, list):
-            for item in env:
-                if isinstance(item, str) and item.startswith("VAULT_ROOT="):
-                    env_value = item.partition("=")[2]
-                    break
-        if env_value:
-            mounts.append((None, env_value))
+                return source
 
     volumes = compose.get("volumes")
     if isinstance(volumes, dict):
         for volume_name in volumes:
             if "vault" in volume_name:
-                mounts.append((volume_name, None))
+                return volume_name
 
-    return mounts
-
-
-def _environment_roots(verbose: bool) -> list[Path]:
-    roots: list[Path] = []
-    for key in ("VAULT_ROOT", "VAULT_PATH"):
-        value = os.environ.get(key)
-        if not value:
-            continue
-
-        candidate = _normalize_root(value)
-        if candidate.exists():
-            roots.append(candidate)
-        elif verbose:
-            print(f"⚠️ Ignoring missing {key} path: {candidate}")
-
-    return roots
+    return None
 
 
 def _docker_mountpoint(volume_name: str, verbose: bool) -> Path | None:
@@ -194,39 +123,23 @@ def _docker_mountpoint(volume_name: str, verbose: bool) -> Path | None:
 
 
 def _discover_default_roots(verbose: bool) -> list[Path]:
-    roots: list[Path] = []
-    seen: set[Path] = set()
-
-    def _add_root(candidate: Path) -> None:
-        resolved = candidate.resolve()
-        if resolved in seen:
-            return
-        seen.add(resolved)
-        if resolved.exists():
-            roots.append(resolved)
-        elif verbose:
-            print(f"⚠️ Ignoring unavailable mount target: {resolved}")
-
-    for env_root in _environment_roots(verbose):
-        _add_root(env_root)
-
     compose = _load_compose(verbose)
     if not compose:
-        return roots
+        return []
 
-    for volume_name, target in _extract_vault_mounts(compose):
-        if target:
-            _add_root(_normalize_root(target))
+    volume_name = _extract_volume_name(compose)
+    if volume_name is None:
+        if verbose:
+            print("⚠️ No vault-like volume found in docker-compose.yml")
+        return []
 
-        if volume_name:
-            mountpoint = _docker_mountpoint(volume_name, verbose)
-            if mountpoint is not None:
-                _add_root(mountpoint)
+    mountpoint = _docker_mountpoint(volume_name, verbose)
+    if mountpoint is None:
+        if verbose:
+            print(f"⚠️ Unable to resolve mount point for volume {volume_name}")
+        return []
 
-    if not roots and verbose:
-        print("⚠️ No vault-like volume or mount path found in docker-compose.yml")
-
-    return roots
+    return [mountpoint]
 
 STRING_FIELDS = {
     "title",
@@ -313,8 +226,7 @@ def main() -> None:
         nargs="*",
         help=(
             "Root directory (or directories) to scan for markdown files. Defaults to the "
-            "VAULT_ROOT/VAULT_PATH environment variable or vault mount discovered from "
-            "docker-compose.yml."
+            "vault mount discovered from watcher/docker-compose.yml."
         ),
     )
     parser.add_argument(
