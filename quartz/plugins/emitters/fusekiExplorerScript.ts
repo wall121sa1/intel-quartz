@@ -35,14 +35,14 @@ WHERE {
           ci:prop/title ?title ;
           ci:prop/mentions ?entity .
   ?entity rdfs:label ?entityLabel .
-  FILTER(CONTAINS(LCASE(?entityLabel), LCASE(${ '${' }JSON.stringify(p.entity)${ '}' })))
+    FILTER(CONTAINS(LCASE(?entityLabel), LCASE(${'${'}JSON.stringify(p.entity)${'}'})))
   OPTIONAL { ?report ci:prop/date ?date }
   OPTIONAL {
     ?place ci:prop/mentionedIn ?report ;
            rdfs:label ?placeLabel .
     OPTIONAL { ?place geo:lat ?lat ; geo:long ?long }
   }
-  ${'${'}p.startDate || p.endDate ? `\n  FILTER(${ '${' }buildDateFilters('date', p.startDate, p.endDate)${ '}' })` : ''${'}'}
+  ${'${'}p.startDate || p.endDate ? `\n  FILTER(${ '${'}buildDateFilters('date', p.startDate, p.endDate)${'}' })` : ''${'}'}
 }
 ORDER BY DESC(?date)
 LIMIT ${'${'}p.limit || 200${'}'}`,
@@ -53,13 +53,13 @@ WHERE {
           ci:prop/title ?title ;
           ci:prop/mentions ?entity .
   ?entity rdfs:label ?entityLabel .
-  FILTER(CONTAINS(LCASE(?entityLabel), LCASE(${ '${' }JSON.stringify(p.entity)${ '}' })))
+    FILTER(CONTAINS(LCASE(?entityLabel), LCASE(${'${'}JSON.stringify(p.entity)${'}'})))
   ?place ci:prop/mentionedIn ?report ;
          rdfs:label ?placeLabel .
-  FILTER(CONTAINS(LCASE(?placeLabel), LCASE(${ '${' }JSON.stringify(p.place)${ '}' })))
+  FILTER(CONTAINS(LCASE(?placeLabel), LCASE(${'${'}JSON.stringify(p.place)${'}'})))
   OPTIONAL { ?place geo:lat ?lat ; geo:long ?long }
   OPTIONAL { ?report ci:prop/date ?date }
-  ${'${'}p.startDate || p.endDate ? `\n  FILTER(${ '${' }buildDateFilters('date', p.startDate, p.endDate)${ '}' })` : ''${'}'}
+  ${'${'}p.startDate || p.endDate ? `\n  FILTER(${ '${'}buildDateFilters('date', p.startDate, p.endDate)${'}' })` : ''${'}'}
 }
 ORDER BY DESC(?date)
 LIMIT ${'${'}p.limit || 200${'}'}`,
@@ -70,7 +70,7 @@ WHERE {
           ci:prop/title ?title ;
           ci:prop/mentions ?entity .
   ?entity rdfs:label ?entityLabel .
-  FILTER(CONTAINS(LCASE(?entityLabel), LCASE(${ '${' }JSON.stringify(p.entity)${ '}' })))
+    FILTER(CONTAINS(LCASE(?entityLabel), LCASE(${'${'}JSON.stringify(p.entity)${'}'})))
 
   OPTIONAL {
     ?report ci:prop/mentions ?linkedEntity .
@@ -85,7 +85,7 @@ WHERE {
   }
 
   OPTIONAL { ?report ci:prop/date ?date }
-  ${'${'}p.startDate || p.endDate ? `\n  FILTER(${ '${' }buildDateFilters('date', p.startDate, p.endDate)${ '}' })` : ''${'}'}
+  ${'${'}p.startDate || p.endDate ? `\n  FILTER(${ '${'}buildDateFilters('date', p.startDate, p.endDate)${'}' })` : ''${'}'}
 }
 ORDER BY DESC(?date)
 LIMIT ${'${'}p.limit || 200${'}'}`
