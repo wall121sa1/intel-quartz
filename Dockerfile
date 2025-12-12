@@ -21,4 +21,4 @@ COPY --from=builder /usr/src/app/ /usr/src/app/
 COPY . .
 RUN chmod +x start-quartz.sh
 ENTRYPOINT ["./start-quartz.sh"]
-CMD ["npx", "quartz", "build", "--serve"]
+CMD ["bash"]
