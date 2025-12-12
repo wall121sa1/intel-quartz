@@ -5,7 +5,7 @@ import boto3
 from slugify import slugify
 from flask import current_app
 
-from sanitizers import sanitize_frontmatter_list, sanitize_frontmatter_value
+from watcher.sanitizers import sanitize_frontmatter_list, sanitize_frontmatter_value
 
 class StorageService:
     @staticmethod
