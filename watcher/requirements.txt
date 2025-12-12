@@ -32,3 +32,4 @@ PyYAML==6.0.2
 python-dotenv==1.0.1
 python-multipart==0.0.9
 tomli==2.0.1
+python-frontmatter==1.1.0
