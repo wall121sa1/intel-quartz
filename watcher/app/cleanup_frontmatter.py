@@ -6,6 +6,7 @@ from importlib import import_module, util
 import json
 import os
 import subprocess
+import re
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Dict, Tuple
@@ -21,17 +22,13 @@ from sanitizers import sanitize_frontmatter_list, sanitize_frontmatter_value
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
+# Regex helpers for the rescue operation
+KEY_PATTERN = re.compile(r"^\s*[a-zA-Z0-9_-]+\s*:")
+LIST_PATTERN = re.compile(r"^\s*-\s")
+
 
 def _normalize_root(path_str: str) -> Path:
-    """Convert the provided path to an absolute ``Path``.
-
-    UNC-style paths (e.g., ``\\\\wsl.localhost\\...``) are converted to
-    forward-slash notation so they can be traversed on Linux hosts. Relative
-    paths are resolved against the current working directory to work both on
-    the host and inside the Docker container image where ``/app`` is the
-    default workdir.
-    """
-
+    """Convert the provided path to an absolute ``Path``."""
     normalized_str = path_str
     if path_str.startswith("\\\\"):
         normalized_str = path_str.replace("\\", "/")
@@ -47,7 +44,6 @@ def _yaml_module():
     spec = util.find_spec("yaml")
     if spec is None:
         return None
-
     return import_module("yaml")
 
 
@@ -62,7 +58,6 @@ def _compose_candidates() -> list[Path]:
         SCRIPT_DIR.parent / "watcher" / "docker-compose.yml",
         SCRIPT_DIR.parent / "watcher" / "docker-compose.yaml",
     ]
-
     seen: set[Path] = set()
     unique_candidates: list[Path] = []
     for path in candidates:
@@ -76,7 +71,6 @@ def _find_compose_file(verbose: bool) -> Path | None:
     for candidate in _compose_candidates():
         if candidate.exists():
             return candidate
-
     if verbose:
         print(
             "⚠️ Unable to locate docker-compose.yml near the current working "
@@ -114,7 +108,6 @@ def _load_compose(verbose: bool) -> Dict[str, Any]:
 
 def _extract_vault_mounts(compose: Dict[str, Any]) -> list[tuple[str | None, str | None]]:
     mounts: list[tuple[str | None, str | None]] = []
-
     services = compose.get("services", {}) or {}
     for service_key in ("watcher", "watcher-worker", "quartz"):
         service = services.get(service_key)
@@ -161,13 +154,11 @@ def _environment_roots(verbose: bool) -> list[Path]:
         value = os.environ.get(key)
         if not value:
             continue
-
         candidate = _normalize_root(value)
         if candidate.exists():
             roots.append(candidate)
         elif verbose:
             print(f"⚠️ Ignoring missing {key} path: {candidate}")
-
     return roots
 
 
@@ -233,6 +224,7 @@ def _discover_default_roots(verbose: bool) -> list[Path]:
 
     return roots
 
+
 STRING_FIELDS = {
     "title",
     "source",
@@ -285,88 +277,111 @@ def _sanitize_metadata(metadata: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
     return changed, updated
 
 
-def _repair_frontmatter_lines(lines: list[str], verbose: bool) -> list[str]:
-    """Merge orphaned lines that likely belong to the previous list item.
+def _rescue_malformed_file(path: Path, dry_run: bool, verbose: bool) -> bool:
+    """Attempts to fix files that crash the YAML parser (e.g. newlines in list items)."""
+    try:
+        content = path.read_text(encoding="utf-8")
+        lines = content.splitlines()
 
-    A stray newline in a list item can produce an unindented line that breaks
-    YAML parsing (e.g., ``Toobit`` on its own line). When a non-empty line
-    doesn't look like a mapping key or list entry but follows a list item, we
-    join it to the prior line with a space to restore a single value.
-    """
+        if len(lines) < 2 or lines[0].strip() != "---":
+            return False
 
-    repaired: list[str] = []
+        # Find the closing fence
+        try:
+            end_idx = lines.index("---", 1)
+        except ValueError:
+            return False
 
-    for line in lines:
-        stripped = line.strip()
-        if (
-            stripped
-            and ":" not in line
-            and not line.lstrip().startswith("-")
-            and repaired
-            and repaired[-1].lstrip().startswith("-")
-        ):
-            if verbose:
-                print(
-                    "🩹 Reattaching orphan line to previous list item: "
-                    f"'{stripped}'"
-                )
-            repaired[-1] = repaired[-1].rstrip() + " " + stripped
-            continue
+        new_fm_lines = []
+        new_fm_lines.append(lines[0])  # keep start fence
+        
+        changed = False
 
-        repaired.append(line)
+        # Iterate strictly inside the frontmatter block
+        for i in range(1, end_idx):
+            line = lines[i]
+            stripped = line.strip()
 
-    return repaired
+            if not stripped:
+                new_fm_lines.append(line)
+                continue
 
+            # Heuristic: Valid YAML lines in frontmatter are usually:
+            # 1. Keys: "title: ..."
+            # 2. List items: "- value" or "  - value"
+            # 3. Comments: "# ..."
+            is_key = KEY_PATTERN.match(line)
+            is_list = LIST_PATTERN.match(line)
+            is_comment = stripped.startswith("#")
 
-def _repair_frontmatter_text(content: str, verbose: bool) -> str | None:
-    """Attempt to repair malformed frontmatter caused by stray newlines."""
+            if is_key or is_list or is_comment:
+                new_fm_lines.append(line)
+            else:
+                # If it's none of the above, it's likely a broken newline from a previous value.
+                # We merge it into the previous line with a space.
+                # Example:
+                #   - ValuePart1
+                #   ValuePart2  <-- We are here
+                
+                # Find the last non-empty line we added
+                last_idx = len(new_fm_lines) - 1
+                while last_idx > 0 and not new_fm_lines[last_idx].strip():
+                    last_idx -= 1
 
-    lines = content.splitlines()
-    start = next((idx for idx, line in enumerate(lines) if line.strip() == "---"), None)
-    if start is None:
-        return None
+                if last_idx > 0:
+                    new_fm_lines[last_idx] = new_fm_lines[last_idx] + " " + stripped
+                    changed = True
+                    if verbose:
+                        print(f"   ↳ Merged broken line in {path.name}: '{stripped}'")
+                else:
+                    new_fm_lines.append(line)
 
-    end = next(
-        (idx for idx in range(start + 1, len(lines)) if lines[idx].strip() == "---"),
-        None,
-    )
-    if end is None:
-        return None
+        if not changed:
+            return False
 
-    frontmatter_lines = lines[start + 1 : end]
-    repaired_lines = _repair_frontmatter_lines(frontmatter_lines, verbose)
-    if repaired_lines == frontmatter_lines:
-        return None
+        # Rebuild file
+        new_content = "\n".join(new_fm_lines + lines[end_idx:])
+        
+        if dry_run:
+            print(f"DRY RUN: Rescued malformed YAML in {path}")
+            return True
 
-    repaired_content = lines[: start + 1] + repaired_lines + lines[end:]
-    return "\n".join(repaired_content) + ("\n" if content.endswith("\n") else "")
+        path.write_text(new_content, encoding="utf-8")
+        print(f"🚑 Rescued malformed YAML in {path}")
+        return True
+
+    except Exception as e:
+        if verbose:
+            print(f"⚠️ Failed to rescue {path}: {e}")
+        return False
 
 
 def _process_file(path: Path, dry_run: bool, verbose: bool) -> bool:
     """Sanitize a single markdown file. Returns True if modified."""
-    raw_text = path.read_text(encoding="utf-8")
-    repaired_text: str | None = None
-
     try:
-        post = frontmatter.loads(raw_text)
+        post = frontmatter.load(path)
     except Exception as exc:  # noqa: BLE001
-        repaired_text = _repair_frontmatter_text(raw_text, verbose)
-        if repaired_text is None:
-            if verbose:
-                print(f"⚠️ Skipping {path}: {exc}")
-            return False
-
-        try:
-            post = frontmatter.loads(repaired_text)
-        except Exception as repair_exc:  # noqa: BLE001
-            if verbose:
-                print(f"⚠️ Skipping {path} after repair attempt: {repair_exc}")
+        if verbose:
+            print(f"⚠️ Parse failed for {path.name}: {exc}. Attempting rescue...")
+        
+        # Trigger rescue mode if parsing failed
+        rescued = _rescue_malformed_file(path, dry_run, verbose)
+        if rescued:
+            # If we rescued it, try to load it again to do the standard sanitization
+            if not dry_run:
+                try:
+                    post = frontmatter.load(path)
+                except Exception:
+                    return True # We fixed the structure, but maybe content is still weird. Stop here.
+            else:
+                return True
+        else:
             return False
 
     changed, new_metadata = _sanitize_metadata(post.metadata or {})
-    if not changed and repaired_text is None:
+    if not changed:
         if verbose:
-            print(f"✅ {path} already clean")
+            print(f"✅ {path} clean")
         return False
 
     post.metadata = new_metadata
