@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import argparse
-import importlib
+from importlib import import_module, util
 import json
 import os
 import subprocess
@@ -44,11 +44,11 @@ def _normalize_root(path_str: str) -> Path:
 
 
 def _yaml_module():
-    spec = importlib.util.find_spec("yaml")
+    spec = util.find_spec("yaml")
     if spec is None:
         return None
 
-    return importlib.import_module("yaml")
+    return import_module("yaml")
 
 
 def _compose_candidates() -> list[Path]:
