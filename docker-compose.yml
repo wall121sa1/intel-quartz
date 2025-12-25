@@ -11,7 +11,9 @@ services:
 
   # Postgres for Watcher Service
   postgres_watcher:
-    image: postgres:16
+    build:
+      context: .
+      dockerfile: services/shared/postgres.Dockerfile
     container_name: quartz-db-watcher
     environment:
       POSTGRES_USER: watcher
@@ -24,7 +26,6 @@ services:
     volumes:
       - watcher-db:/var/lib/postgresql/data
       - credentials:/credentials
-      - ./services/shared/postgres-entrypoint.sh:/opt/quartz/postgres-entrypoint.sh:ro
     restart: unless-stopped
     logging: *default-logging
     healthcheck:
@@ -35,7 +36,9 @@ services:
 
   # Postgres for Telegram RSS (Isolated DB)
   postgres_rss:
-    image: postgres:16
+    build:
+      context: .
+      dockerfile: services/shared/postgres.Dockerfile
     container_name: quartz-db-rss
     environment:
       POSTGRES_USER: rssuser
@@ -48,7 +51,6 @@ services:
     volumes:
       - rss-db:/var/lib/postgresql/data
       - credentials:/credentials
-      - ./services/shared/postgres-entrypoint.sh:/opt/quartz/postgres-entrypoint.sh:ro
     restart: unless-stopped
     logging: *default-logging
     healthcheck:
