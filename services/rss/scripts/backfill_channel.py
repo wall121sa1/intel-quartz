@@ -1,6 +1,5 @@
 import argparse
 import asyncio
-import os
 import sys
 from pathlib import Path
 from typing import List, Optional
@@ -18,27 +17,19 @@ from telethon import TelegramClient
 
 
 from app.config import load_config
+from app.credentials import get_bot_credentials, get_bot_env_keys
 from app.db import init_db, get_session
 from app.models import Bot as BotModel, Channel as ChannelModel, Message as MessageModel, Feed, FeedItem
 from app.release_scheduler import run_release_cycle_once
 
 def get_bot_env_credentials(bot_name: str):
-    """
-    For a bot named 'MESS_BOT', expect:
-      MESS_BOT_API_ID
-      MESS_BOT_API_HASH
-    """
-    env_prefix = bot_name.upper()
-    api_id_env = f"{env_prefix}_API_ID"
-    api_hash_env = f"{env_prefix}_API_HASH"
-
-    api_id = os.getenv(api_id_env)
-    api_hash = os.getenv(api_hash_env)
+    api_id_env, api_hash_env = get_bot_env_keys(bot_name)
+    api_id, api_hash, _ = get_bot_credentials(bot_name)
 
     if not api_id or not api_hash:
         raise SystemExit(
             f"Missing env vars {api_id_env} / {api_hash_env} for bot '{bot_name}'.\n"
-            f"Set them in your environment or in a .env file."
+            "Set them in your environment, credentials file, or in a .env file."
         )
 
     return int(api_id), api_hash

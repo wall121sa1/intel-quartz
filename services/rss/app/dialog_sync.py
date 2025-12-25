@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from typing import Optional
 
@@ -7,6 +6,7 @@ from telethon import TelegramClient
 from telethon.tl.types import Channel as TLChannel, Chat as TLChat, User as TLUser
 
 from .config import load_config
+from .credentials import get_bot_credentials, get_bot_env_keys
 from .db import get_session
 from .models import (
     Bot as BotModel,
@@ -39,22 +39,13 @@ def _guess_telegram_id(dialog) -> str:
 
 
 def _get_bot_env_credentials(bot_name: str):
-    """
-    For a bot named 'MESS_BOT', expect:
-      MESS_BOT_API_ID
-      MESS_BOT_API_HASH
-    """
-    env_prefix = bot_name.upper()
-    api_id_env = f"{env_prefix}_API_ID"
-    api_hash_env = f"{env_prefix}_API_HASH"
-
-    api_id = os.getenv(api_id_env)
-    api_hash = os.getenv(api_hash_env)
+    api_id_env, api_hash_env = get_bot_env_keys(bot_name)
+    api_id, api_hash, _ = get_bot_credentials(bot_name)
 
     if not api_id or not api_hash:
         raise RuntimeError(
             f"Missing env vars {api_id_env} / {api_hash_env} for bot '{bot_name}'. "
-            f"Set them in your environment or .env file."
+            f"Set them in your environment, credentials file, or .env file."
         )
 
     return int(api_id), api_hash

@@ -1,11 +1,11 @@
 import argparse
-import os
 from pathlib import Path
 
 import yaml
 from dotenv import load_dotenv
 from telethon import TelegramClient
 
+from app.credentials import get_bot_credentials, get_bot_env_keys
 
 def load_config(path: str = "config.yaml") -> dict:
     with open(path, "r") as f:
@@ -19,23 +19,14 @@ def find_bot(config: dict, bot_name: str) -> dict:
     raise SystemExit(f"Bot '{bot_name}' not found in config.yaml")
 
 
-def get_bot_credentials(bot_name: str):
-    """
-    For a bot named 'ru_crime_bot', we expect:
-      RU_CRIME_BOT_API_ID
-      RU_CRIME_BOT_API_HASH
-    """
-    env_prefix = bot_name.upper()
-    api_id_env = f"{env_prefix}_API_ID"
-    api_hash_env = f"{env_prefix}_API_HASH"
-
-    api_id = os.getenv(api_id_env)
-    api_hash = os.getenv(api_hash_env)
+def get_bot_credentials_for_login(bot_name: str):
+    api_id_env, api_hash_env = get_bot_env_keys(bot_name)
+    api_id, api_hash, _ = get_bot_credentials(bot_name)
 
     if not api_id or not api_hash:
         raise SystemExit(
             f"Missing env vars {api_id_env} / {api_hash_env} for bot '{bot_name}'.\n"
-            f"Set them in your environment or in a .env file."
+            "Set them in your environment, credentials file, or in a .env file."
         )
 
     return int(api_id), api_hash
@@ -46,7 +37,7 @@ async def login_bot(bot_name: str):
     load_dotenv()
     config = load_config()
     bot_cfg = find_bot(config, bot_name)
-    api_id, api_hash = get_bot_credentials(bot_name)
+    api_id, api_hash = get_bot_credentials_for_login(bot_name)
 
     session_name = bot_cfg.get("session_name")
     if not session_name:
