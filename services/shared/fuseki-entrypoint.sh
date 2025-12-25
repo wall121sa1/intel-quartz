@@ -7,20 +7,27 @@ CREDENTIALS_KEY="${FUSEKI_CREDENTIAL_KEY:-FUSEKI_ADMIN_PASSWORD}"
 DEFAULT_PASSWORD="${FUSEKI_PASSWORD_DEFAULT:-changeme}"
 
 credentials_dir=$(dirname "${CREDENTIALS_FILE}")
-if mkdir -p "${credentials_dir}" 2>/dev/null; then
-  if touch "${CREDENTIALS_FILE}" 2>/dev/null; then
-    chmod 600 "${CREDENTIALS_FILE}" 2>/dev/null || true
-  else
-    echo "Warning: cannot touch ${CREDENTIALS_FILE}; proceeding without credentials file." >&2
+if ! mkdir -p "${credentials_dir}" 2>/dev/null; then
+  echo "Error: cannot create ${credentials_dir}; credentials file required." >&2
+  exit 1
+fi
+
+if [ ! -e "${CREDENTIALS_FILE}" ]; then
+  if ! touch "${CREDENTIALS_FILE}" 2>/dev/null; then
+    echo "Error: cannot create ${CREDENTIALS_FILE}; credentials file required." >&2
+    exit 1
   fi
-else
-  echo "Warning: cannot create ${credentials_dir}; proceeding without credentials file." >&2
+fi
+
+chmod 600 "${CREDENTIALS_FILE}" 2>/dev/null || true
+
+if [ ! -r "${CREDENTIALS_FILE}" ] || [ ! -w "${CREDENTIALS_FILE}" ]; then
+  echo "Error: ${CREDENTIALS_FILE} must be readable and writable by this container user." >&2
+  exit 1
 fi
 
 read_credential() {
-  if [ -f "${CREDENTIALS_FILE}" ]; then
-    awk -F= -v key="$1" '$1 == key {value=$2} END {print value}' "${CREDENTIALS_FILE}"
-  fi
+  awk -F= -v key="$1" '$1 == key {value=$2} END {print value}' "${CREDENTIALS_FILE}"
 }
 
 existing_password=$(read_credential "${CREDENTIALS_KEY}")
