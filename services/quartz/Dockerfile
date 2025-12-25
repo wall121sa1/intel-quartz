@@ -11,6 +11,4 @@ RUN npm install -g npm@11.6.4
 WORKDIR /usr/src/app
 COPY --from=builder /usr/src/app/ /usr/src/app/
 COPY . .
-RUN chmod +x start-quartz.sh
-ENTRYPOINT ["./start-quartz.sh"]
 CMD ["bash"]
