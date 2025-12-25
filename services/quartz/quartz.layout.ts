@@ -9,8 +9,6 @@ export const sharedPageComponents: SharedLayout = {
   footer: Component.Footer({
     links: {
       "Offchain.Info": "https://offchain.info",
-      "Offchain Map": "/map",
-      "Knowledge Graph": "/fuseki-explorer"
     },
   }),
 }
