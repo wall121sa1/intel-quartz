@@ -8,7 +8,9 @@ x-logging: &default-logging
 
 services:
   postgres_rss:
-    image: postgres:16
+    build:
+      context: ../..
+      dockerfile: services/shared/postgres.Dockerfile
     container_name: quartz-db-rss
     environment:
       POSTGRES_USER: rssuser

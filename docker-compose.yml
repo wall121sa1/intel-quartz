@@ -26,6 +26,7 @@ services:
     volumes:
       - watcher-db:/var/lib/postgresql/data
       - credentials:/credentials
+      - ./services/shared/postgres-entrypoint.sh:/opt/quartz/postgres-entrypoint.sh:ro
     restart: unless-stopped
     logging: *default-logging
     healthcheck:
@@ -51,6 +52,7 @@ services:
     volumes:
       - rss-db:/var/lib/postgresql/data
       - credentials:/credentials
+      - ./services/shared/postgres-entrypoint.sh:/opt/quartz/postgres-entrypoint.sh:ro
     restart: unless-stopped
     logging: *default-logging
     healthcheck:
@@ -61,7 +63,9 @@ services:
 
   # Fuseki Knowledge Graph
   fuseki:
-    image: stain/jena-fuseki:latest
+    build:
+      context: .
+      dockerfile: services/shared/fuseki.Dockerfile
     container_name: quartz-fuseki
     environment:
       - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-changeme}

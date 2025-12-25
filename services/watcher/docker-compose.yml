@@ -8,7 +8,9 @@ x-logging: &default-logging
 
 services:
   postgres_watcher:
-    image: postgres:16
+    build:
+      context: ../..
+      dockerfile: services/shared/postgres.Dockerfile
     container_name: quartz-db-watcher
     environment:
       POSTGRES_USER: watcher
@@ -31,7 +33,9 @@ services:
       retries: 5
 
   postgres_rss:
-    image: postgres:16
+    build:
+      context: ../..
+      dockerfile: services/shared/postgres.Dockerfile
     container_name: quartz-db-rss
     environment:
       POSTGRES_USER: rssuser
@@ -170,7 +174,9 @@ services:
     logging: *default-logging
 
   fuseki:
-    image: stain/jena-fuseki:latest
+    build:
+      context: ../..
+      dockerfile: services/shared/fuseki.Dockerfile
     container_name: quartz-fuseki
     environment:
       - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-changeme}
