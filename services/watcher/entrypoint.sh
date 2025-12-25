@@ -59,6 +59,34 @@ read_credential() {
   fi
 }
 
+update_database_url() {
+  python - <<'PY'
+import os
+from urllib.parse import quote, urlparse, urlunparse
+
+url = os.environ.get("DATABASE_URL")
+password = os.environ.get("DB_PASSWORD")
+
+if not url or not password:
+    raise SystemExit
+
+parsed = urlparse(url)
+if not parsed.username:
+    print(url)
+    raise SystemExit
+
+username = quote(parsed.username, safe="")
+hostname = parsed.hostname or ""
+port = f":{parsed.port}" if parsed.port else ""
+userinfo = f"{username}:{quote(password, safe='')}@"
+netloc = f"{userinfo}{hostname}{port}"
+new_url = urlunparse(
+    (parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment)
+)
+print(new_url)
+PY
+}
+
 wait_for_service() {
   url=$1
   name=$2
@@ -112,12 +140,11 @@ ensure_secret "ENCRYPTION_KEY" generate_encryption_key "change-me-too" "change-m
 if [ -n "${DATABASE_URL:-}" ]; then
   db_password=$(read_credential "POSTGRES_WATCHER_PASSWORD")
   if [ -n "${db_password}" ]; then
-    placeholder=":${DB_PASSWORD_DEFAULT}@"
-    if printf '%s' "${DATABASE_URL}" | grep -q "${placeholder}"; then
-      DATABASE_URL=$(printf '%s' "${DATABASE_URL}" | sed "s/${placeholder}/:${db_password}@/")
-      export DATABASE_URL
-      echo "Updated Watcher DATABASE_URL from credentials file."
-    fi
+    DB_PASSWORD="${db_password}"
+    export DB_PASSWORD
+    DATABASE_URL=$(update_database_url)
+    export DATABASE_URL
+    echo "Updated Watcher DATABASE_URL from credentials file."
   fi
 fi
 
