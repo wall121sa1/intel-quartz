@@ -34,7 +34,7 @@ Watcher is a Flask-based ingestion pipeline that pulls RSS feeds, scrapes the fu
 
 2. **spaCy model** – Download the English model required by `app/services/nlp.py`.
    ```bash
-   python -m spacy download en_core_web_sm
+   python -m spacy download en_core_web_lg
    ```
 
 3. **Configuration** – Environment variables override defaults in `config.py`. Common ones:
@@ -76,7 +76,7 @@ WORKDIR /app
 COPY watcher ./
 RUN pip install --no-cache-dir --upgrade pip \ 
     && pip install --no-cache-dir -r requirements.txt \ 
-    && python -m spacy download en_core_web_sm
+    && python -m spacy download en_core_web_lg
 
 # Ensure entrypoint is executable
 RUN chmod +x entrypoint.sh

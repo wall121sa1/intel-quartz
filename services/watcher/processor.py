@@ -2,7 +2,7 @@ import spacy
 from app.models import ArticleData
 
 # Load the model once
-nlp = spacy.load("en_core_web_sm")
+nlp = spacy.load("en_core_web_lg")
 
 def extract_entities(article: ArticleData) -> ArticleData:
     doc = nlp(article.content)

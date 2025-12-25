@@ -66,7 +66,7 @@ Backend: Python 3.10+, Flask (Web Framework)
 
 Database: SQLite (Dev), SQLAlchemy ORM
 
-NLP: spaCy (en_core_web_sm model)
+NLP: spaCy (en_core_web_lg model)
 
 Scraping: feedparser, newspaper3k, lxml_html_clean
 
@@ -95,7 +95,7 @@ pip install -r requirements.txt
 
 We use the small English model for speed and efficiency.
 
-python -m spacy download en_core_web_sm
+python -m spacy download en_core_web_lg
 
 
 5. Initialize and Run

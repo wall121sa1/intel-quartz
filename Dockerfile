@@ -20,7 +20,7 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 # Download Spacy model globally so all services have it
-RUN python -m spacy download en_core_web_sm
+RUN python -m spacy download en_core_web_lg
 
 # ==========================================
 # SERVICE: Watcher
