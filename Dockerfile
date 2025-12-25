@@ -74,6 +74,4 @@ COPY services/quartz/package.json services/quartz/package-lock.json* ./
 COPY services/quartz/scripts/checkNpmVersion.mjs ./scripts/
 RUN npm ci
 COPY services/quartz/ .
-RUN chmod +x start-quartz.sh
-ENTRYPOINT ["./start-quartz.sh"]
 CMD ["bash"]
