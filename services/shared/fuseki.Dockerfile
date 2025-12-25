@@ -1,4 +1,4 @@
-ARG FUSEKI_VERSION=4.10.0
+ARG FUSEKI_VERSION=latest
 FROM stain/jena-fuseki:${FUSEKI_VERSION}
 
 COPY --chmod=755 services/shared/fuseki-entrypoint.sh /opt/quartz/fuseki-entrypoint.sh
