@@ -1,9 +1,10 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, Form
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
+from .credentials import credentials_file_path, get_bot_credentials, set_bot_credentials
 from .db import get_session
 from .models import Bot, Channel, Feed, FeedItem
 from .dialog_sync import sync_dialogs_for_bot
@@ -198,6 +199,7 @@ def wrap_page(content: str, title: str = "Telegram RSS Dashboard") -> str:
         <a href="/dashboard">Overview</a>
         <a href="/dashboard/channels">Channels</a>
         <a href="/dashboard/channels/new">Add channel</a>
+        <a href="/dashboard/credentials">Credentials</a>
       </div>
     </div>
     {content}
@@ -543,6 +545,107 @@ def edit_channel_form(channel_id: int, db: Session = Depends(get_session)):
     """
 
     return HTMLResponse(wrap_page(form_html, "Telegram RSS – Edit Channel"))
+
+
+@router.get("/dashboard/credentials", response_class=HTMLResponse)
+def credentials_form(request: Request):
+    config = request.app.state.config
+    bots = config.bots
+    file_path = credentials_file_path()
+
+    rows = []
+    for bot in bots:
+        api_id, api_hash, source = get_bot_credentials(bot.name)
+        configured = api_id and api_hash
+        status_pill = (
+            '<span class="pill pill-green">configured</span>'
+            if configured
+            else '<span class="pill pill-red">missing</span>'
+        )
+        source_label = "missing"
+        if source == "env":
+            source_label = "env"
+        elif source == "credentials":
+            source_label = "credentials file"
+        elif source == "mixed":
+            source_label = "mixed"
+
+        rows.append(f"""
+        <tr>
+          <td>{bot.name}</td>
+          <td>{bot.session_name}</td>
+          <td>{status_pill}</td>
+          <td>{source_label}</td>
+          <td>
+            <form method="post" action="/dashboard/credentials" style="display:grid; gap:6px;">
+              <input type="hidden" name="bot_name" value="{bot.name}">
+              <input class="field-input" name="api_id" placeholder="API ID (e.g. 123456)" required>
+              <input class="field-input" name="api_hash" placeholder="API Hash" required>
+              <button class="btn btn-sm" type="submit">Save credentials</button>
+            </form>
+          </td>
+        </tr>
+        """)
+
+    table_html = f"""
+    <div class="card">
+      <h2>Telegram Credentials</h2>
+      <p class="hint">
+        Add or update Telegram API credentials for each bot. Values are written to
+        <code>{file_path}</code>. Restart the RSS service after updating credentials
+        so the pollers reload them.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Bot</th>
+            <th>Session</th>
+            <th>Status</th>
+            <th>Source</th>
+            <th>Update credentials</th>
+          </tr>
+        </thead>
+        <tbody>
+          {''.join(rows) if rows else '<tr><td colspan="5">No bots configured in config.yaml.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+    """
+
+    return HTMLResponse(wrap_page(table_html, "Telegram RSS – Credentials"))
+
+
+@router.post("/dashboard/credentials")
+def update_credentials(
+    bot_name: str = Form(...),
+    api_id: str = Form(...),
+    api_hash: str = Form(...),
+):
+    api_id = api_id.strip()
+    api_hash = api_hash.strip()
+
+    if not api_id.isdigit():
+        error_html = """
+        <div class="card">
+          <h2>Invalid API ID</h2>
+          <p class="hint">Telegram API ID must be numeric. Please try again.</p>
+          <a class="btn btn-secondary btn-sm" href="/dashboard/credentials">Back</a>
+        </div>
+        """
+        return HTMLResponse(wrap_page(error_html, "Telegram RSS – Credentials"), status_code=400)
+
+    if not api_hash:
+        error_html = """
+        <div class="card">
+          <h2>Invalid API Hash</h2>
+          <p class="hint">Telegram API Hash cannot be empty. Please try again.</p>
+          <a class="btn btn-secondary btn-sm" href="/dashboard/credentials">Back</a>
+        </div>
+        """
+        return HTMLResponse(wrap_page(error_html, "Telegram RSS – Credentials"), status_code=400)
+
+    set_bot_credentials(bot_name, api_id, api_hash)
+    return RedirectResponse(url="/dashboard/credentials", status_code=303)
 
 @router.post("/dashboard/feeds/release")
 async def manual_release():

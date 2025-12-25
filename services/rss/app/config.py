@@ -4,6 +4,8 @@ from pydantic import BaseModel
 from typing import List, Optional
 from dotenv import load_dotenv
 
+from .credentials import get_bot_credentials
+
 # Load .env if present (for local dev)
 load_dotenv()
 
@@ -11,8 +13,8 @@ class BotConfig(BaseModel):
     name: str
     theme: Optional[str] = None
     session_name: str
-    api_id: int
-    api_hash: str
+    api_id: Optional[int] = None
+    api_hash: Optional[str] = None
 
 class PollingConfig(BaseModel):
     interval_seconds: int = 20
@@ -41,19 +43,11 @@ def _inject_bot_secrets(raw_data: dict) -> None:
     for bot in bots:
         name = bot["name"]  # e.g. "ru_crime_bot"
         env_prefix = name.upper()  # RU_CRIME_BOT
-        api_id_env = f"{env_prefix}_API_ID"
-        api_hash_env = f"{env_prefix}_API_HASH"
+        api_id, api_hash, _ = get_bot_credentials(name)
 
-        api_id = os.getenv(api_id_env)
-        api_hash = os.getenv(api_hash_env)
-
-        if api_id is None or api_hash is None:
-            raise RuntimeError(
-                f"Missing env vars {api_id_env} / {api_hash_env} for bot '{name}'"
-            )
-
-        bot["api_id"] = int(api_id)
-        bot["api_hash"] = api_hash
+        if api_id is not None and api_hash is not None:
+            bot["api_id"] = int(api_id)
+            bot["api_hash"] = api_hash
 
 
 def load_config(path: str = "config.yaml") -> AppConfig:

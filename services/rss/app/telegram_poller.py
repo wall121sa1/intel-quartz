@@ -91,6 +91,13 @@ def _sync_bots_from_config(db: Session, config: AppConfig) -> List[BotModel]:
 
     bots: List[BotModel] = []
     for bcfg in config.bots:
+        if bcfg.api_id is None or bcfg.api_hash is None:
+            print(
+                f"[telegram_poller] Missing credentials for {bcfg.name}; "
+                "skipping bot until API ID and hash are configured."
+            )
+            continue
+
         bot = db.query(BotModel).filter_by(name=bcfg.name).first()
         if not bot:
             bot = BotModel(
