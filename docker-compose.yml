@@ -1,0 +1,249 @@
+version: "3.9"
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ==========================================
+  # CORE INFRASTRUCTURE (Databases & Tools)
+  # ==========================================
+
+  # Postgres for Watcher Service
+  postgres_watcher:
+    image: postgres:16
+    container_name: quartz-db-watcher
+    environment:
+      POSTGRES_USER: watcher
+      POSTGRES_PASSWORD: watcherpass
+      POSTGRES_DB: watcher
+    volumes:
+      - watcher-db:/var/lib/postgresql/data
+    restart: unless-stopped
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U watcher"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Postgres for Telegram RSS (Isolated DB)
+  postgres_rss:
+    image: postgres:16
+    container_name: quartz-db-rss
+    environment:
+      POSTGRES_USER: rssuser
+      POSTGRES_PASSWORD: rsspass
+      POSTGRES_DB: telegram_rss
+    volumes:
+      - rss-db:/var/lib/postgresql/data
+    restart: unless-stopped
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rssuser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Fuseki Knowledge Graph
+  fuseki:
+    image: stain/jena-fuseki:latest
+    container_name: quartz-fuseki
+    environment:
+      - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-changeme}
+    volumes:
+      - fuseki-data:/fuseki
+    ports:
+      - "3030:3030"
+    restart: unless-stopped
+    logging: *default-logging
+
+  # LibreTranslate
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    container_name: quartz-translate
+    environment:
+      - LT_UPDATE_MODELS=${LT_UPDATE_MODELS:-true}
+      - LT_LOAD_ONLY=${LT_LOAD_ONLY:-en,fr,ru,fa,ar,es,zh}
+      - LT_PORT=4000
+    volumes:
+      - libretranslate-keys:/app/db
+      - libretranslate-models:/home/libretranslate/.local:rw
+    ports:
+      - "4000:4000"
+    restart: unless-stopped
+    logging: *default-logging
+
+  # Filebrowser (Web interface for the Vault)
+  filebrowser:
+    image: filebrowser/filebrowser:latest
+    container_name: quartz-filebrowser
+    ports:
+      - "8081:80"
+    volumes:
+      - watcher-vault:/srv
+      - ./data/filebrowser.db:/database.db
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ==========================================
+  # PYTHON MICROSERVICES
+  # ==========================================
+
+  # NER Service (Named Entity Recognition)
+  ner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ner
+    container_name: quartz-ner
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    logging: *default-logging
+
+  # Watcher Web App (Flask)
+  watcher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: watcher
+    container_name: quartz-watcher
+    env_file: .env
+    environment:
+      # Map global env var to service specific var
+      DATABASE_URL: ${WATCHER_DB_URL}
+      NER_SERVICE_URL: http://ner:8000
+      LIBRETRANSLATE_URL: http://libretranslate:4000
+    ports:
+      - "5000:5000"
+    volumes:
+      - watcher-vault:/app/vault_data
+    depends_on:
+      postgres_watcher:
+        condition: service_healthy
+      ner:
+        condition: service_started
+      libretranslate:
+        condition: service_started
+    restart: unless-stopped
+    logging: *default-logging
+
+  # Watcher Background Worker
+  watcher-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: watcher-worker
+    container_name: quartz-watcher-worker
+    env_file: .env
+    environment:
+      DATABASE_URL: ${WATCHER_DB_URL}
+      LIBRETRANSLATE_URL: http://libretranslate:4000
+      # Worker specific flags
+      ENABLE_SCHEDULER: "true"
+    volumes:
+      - watcher-vault:/app/vault_data
+    depends_on:
+      postgres_watcher:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *default-logging
+
+  # Telegram RSS Bot
+  rss:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: rss
+    container_name: quartz-rss
+    env_file: .env
+    environment:
+      DATABASE_URL: ${RSS_DB_URL}
+    volumes:
+      # Mount session files so you don't have to re-login on restart
+      - rss-sessions:/app/sessions
+      # Optional: Mount config if you need to change it without rebuilding
+      - ./services/rss/config.yaml:/app/config.yaml:ro
+    ports:
+      - "2000:8000"
+    depends_on:
+      postgres_rss:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *default-logging
+
+  # Harvester (Knowledge Graph Sync)
+  harvester:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: harvester
+    container_name: quartz-harvester
+    env_file: .env
+    volumes:
+      - watcher-vault:/data:ro
+    depends_on:
+      - fuseki
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ==========================================
+  # NODE.JS SERVICES
+  # ==========================================
+
+  # Quartz Frontend (Static Site Generator)
+  quartz:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: quartz
+    container_name: quartz-frontend
+    # Run in serve mode for live updates
+    command: ["npx", "quartz", "build", "--serve", "-d", "content", "--port", "8080"]
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount the vault data from Watcher into Quartz's content folder
+      - watcher-vault:/usr/src/app/content:ro
+    depends_on:
+      - watcher
+    restart: unless-stopped
+    logging: *default-logging
+
+# ==========================================
+# VOLUMES
+# ==========================================
+volumes:
+  # Using external names to try and attach to your existing data.
+  # If you are starting fresh, you can remove the "name:" fields.
+  
+  watcher-vault:
+    name: watcher_watcher-vault
+    external: true
+
+  watcher-db:
+    name: watcher_watcher-db
+    external: true
+
+  rss-db:
+    name: watcher_telegram_rss_pgdata
+    external: true
+
+  rss-sessions:
+    # This might be new, so we let Docker create it if it doesn't exist
+    # or you can map it to a host folder: ./data/sessions:/app/sessions
+  
+  fuseki-data:
+    name: watcher_fuseki-data
+    external: true
+
+  libretranslate-keys:
+    name: watcher_libretranslate_api_keys
+    external: true
+
+  libretranslate-models:
+    name: watcher_libretranslate_models
+    external: true

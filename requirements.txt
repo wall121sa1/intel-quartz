@@ -1,0 +1,47 @@
+# --- Core Frameworks ---
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+flask
+gunicorn
+
+# --- Database & ORM ---
+sqlalchemy==2.0.35
+psycopg[binary]==3.2.3
+flask-sqlalchemy
+flask-migrate
+redis
+
+# --- NLP & Parsing ---
+spacy
+newspaper3k
+feedparser
+lxml_html_clean
+langdetect
+python-slugify
+python-frontmatter==1.1.0
+PyYAML==6.0.2
+
+# --- Utilities & Networking ---
+requests
+pydantic==2.9.0
+python-dotenv==1.0.1
+python-multipart==0.0.9
+tomli==2.0.1
+geopy
+countryinfo
+celery
+
+# --- Security & Auth ---
+authlib
+cryptography
+pyotp
+qrcode[pil]
+flask-login
+flask-limiter
+
+# --- Telegram ---
+telethon==1.36.0
+
+# --- Cloud / Storage ---
+boto3
+flask-apscheduler

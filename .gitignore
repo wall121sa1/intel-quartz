@@ -1,20 +1,40 @@
+# --- OS & Editor ---
 .DS_Store
-.gitignore
-node_modules
-public
-prof
-tsconfig.tsbuildinfo
-.obsidian
-.quartz-cache
-private/
-.replit
-replit.nix
-content
-docs
-!/telegram_rss/docs/
-__pycache__
-bin
-include
-lib
-vault_data
-app.db
+.idea/
+.vscode/
+*.swp
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+.coverage
+htmlcov/
+.pytest_cache/
+
+# --- Node.js / Quartz ---
+node_modules/
+npm-debug.log
+yarn-error.log
+.quartz-cache/
+
+# --- Application Data (Volumes) ---
+# Ignore local data folders but keep the structure
+data/*
+!data/.gitkeep
+vault_data/*
+!vault_data/.gitkeep
+sessions/
+*.session
+
+# --- Secrets ---
+.env
+.env.local
+config.yaml
+instance/
