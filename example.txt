@@ -1,0 +1,59 @@
+# ==========================================
+# COMMON / SHARED
+# ==========================================
+FLASK_ENV=production
+# Secret keys for sessions/encryption (Change these in prod!)
+SECRET_KEY=change-me-global-secret
+ENCRYPTION_KEY=change-me-global-encryption-key
+
+# ==========================================
+# SERVICE: WATCHER
+# ==========================================
+# Watcher DB Connection (Note the unique variable name)
+WATCHER_DB_URL=postgresql+psycopg://watcher:watcherpass@postgres_watcher:5432/watcher
+
+# Admin User Bootstrapping
+ADMIN_EMAIL=admin@localhost
+ADMIN_PASSWORD=changeme
+ALLOW_BOOTSTRAP_ADMIN=true
+
+# Service Connections
+NER_SERVICE_URL=http://ner:8000
+LIBRETRANSLATE_URL=http://libretranslate:4000
+VAULT_ROOT=/app/vault_data
+ENABLE_SCHEDULER=true
+
+# Storage (S3 Optional)
+STORAGE_TYPE=local
+# S3_BUCKET=my-bucket
+# AWS_ACCESS_KEY_ID=...
+# AWS_SECRET_ACCESS_KEY=...
+
+# Auth Providers (Optional)
+# GOOGLE_CLIENT_ID=...
+# GOOGLE_CLIENT_SECRET=...
+
+# ==========================================
+# SERVICE: TELEGRAM RSS
+# ==========================================
+# RSS DB Connection
+RSS_DB_URL=postgresql+psycopg://rssuser:rsspass@postgres_rss:5432/telegram_rss
+
+# Telegram API Credentials (REQUIRED)
+MESS_BOT_API_ID=123456
+MESS_BOT_API_HASH=abcdef1234567890
+
+# ==========================================
+# SERVICE: HARVESTER & FUSEKI
+# ==========================================
+FUSEKI_ENDPOINT=http://fuseki:3030/knowledge-graph/update
+FUSEKI_DATASET_NAME=knowledge-graph
+FUSEKI_ADMIN_USER=admin
+FUSEKI_ADMIN_PASSWORD=changeme
+POLL_INTERVAL=300
+
+# ==========================================
+# SERVICE: LIBRETRANSLATE
+# ==========================================
+LT_UPDATE_MODELS=true
+LT_LOAD_ONLY=en,fr,ru,fa,ar,es,zh
