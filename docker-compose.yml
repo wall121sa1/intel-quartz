@@ -26,6 +26,7 @@ services:
     volumes:
       - watcher-db:/var/lib/postgresql/data
       - credentials:/credentials
+      - ./services/shared/postgres-entrypoint.sh:/opt/quartz/postgres-entrypoint.sh:ro
     restart: unless-stopped
     logging: *default-logging
     healthcheck:
@@ -51,6 +52,7 @@ services:
     volumes:
       - rss-db:/var/lib/postgresql/data
       - credentials:/credentials
+      - ./services/shared/postgres-entrypoint.sh:/opt/quartz/postgres-entrypoint.sh:ro
     restart: unless-stopped
     logging: *default-logging
     healthcheck:
