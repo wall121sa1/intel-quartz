@@ -63,7 +63,9 @@ services:
 
   # Fuseki Knowledge Graph
   fuseki:
-    image: stain/jena-fuseki:latest
+    build:
+      context: .
+      dockerfile: services/shared/fuseki.Dockerfile
     container_name: quartz-fuseki
     environment:
       - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-changeme}
@@ -71,7 +73,6 @@ services:
     volumes:
       - fuseki-data:/fuseki
       - credentials:/credentials
-      - ./services/shared/fuseki-entrypoint.sh:/opt/quartz/fuseki-entrypoint.sh:ro
     entrypoint: ["/opt/quartz/fuseki-entrypoint.sh"]
     ports:
       - "3030:3030"
