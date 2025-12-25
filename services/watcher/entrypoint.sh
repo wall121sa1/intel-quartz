@@ -6,6 +6,51 @@ set -e
 echo "--- Container Starting ---"
 echo "Entrypoint command: $@"
 
+secrets_file=""
+
+generate_secret_key() {
+  python - <<'PY'
+import secrets
+print(secrets.token_urlsafe(32))
+PY
+}
+
+generate_encryption_key() {
+  python - <<'PY'
+from cryptography.fernet import Fernet
+print(Fernet.generate_key().decode())
+PY
+}
+
+ensure_secret() {
+  key_name=$1
+  generator=$2
+  shift 2
+
+  current_value=$(eval "printf '%s' \"\${${key_name}:-}\"")
+  for default_value in "$@"; do
+    if [ "${current_value}" = "${default_value}" ]; then
+      current_value=""
+      break
+    fi
+  done
+
+  if [ -z "${current_value}" ] && [ -f "${secrets_file}" ]; then
+    stored_value=$(grep -m 1 "^${key_name}=" "${secrets_file}" | cut -d= -f2-)
+    if [ -n "${stored_value}" ]; then
+      current_value="${stored_value}"
+    fi
+  fi
+
+  if [ -z "${current_value}" ]; then
+    current_value=$(${generator})
+    printf '%s=%s\n' "${key_name}" "${current_value}" >>"${secrets_file}"
+    echo "Generated ${key_name}; stored at ${secrets_file}."
+  fi
+
+  export "${key_name}=${current_value}"
+}
+
 wait_for_service() {
   url=$1
   name=$2
@@ -43,6 +88,18 @@ if [ -n "${LIBRETRANSLATE_URL:-}" ]; then
 else
   echo "LIBRETRANSLATE_URL is not set; skipping LibreTranslate readiness check."
 fi
+
+VAULT_ROOT=${VAULT_ROOT:-/app/vault_data}
+secrets_file="${VAULT_ROOT}/generated-secrets.env"
+mkdir -p "${VAULT_ROOT}"
+
+if [ ! -f "${secrets_file}" ]; then
+  touch "${secrets_file}"
+  chmod 600 "${secrets_file}"
+fi
+
+ensure_secret "SECRET_KEY" generate_secret_key "change-me" "dev-secret-key"
+ensure_secret "ENCRYPTION_KEY" generate_encryption_key "change-me-too" "change-me"
 
 # 1. Run the Python Init Script
 # This will try to connect to the DB. If the DB is still booting,

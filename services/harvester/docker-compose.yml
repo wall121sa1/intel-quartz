@@ -1,9 +1,18 @@
 version: "3.9"
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   harvester:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: ../../Dockerfile
+      target: harvester
+    env_file: ../../.env
     environment:
       FUSEKI_ENDPOINT: ${FUSEKI_ENDPOINT:-http://fuseki:3030/knowledge-graph/update}
       FUSEKI_DATASET_NAME: ${FUSEKI_DATASET_NAME:-knowledge-graph}
@@ -13,10 +22,11 @@ services:
       POLL_INTERVAL: ${POLL_INTERVAL:-60}
       BASE_URI: ${BASE_URI:-file:///data/}
     volumes:
-      - ./data:/data:ro
+      - watcher-vault:/data:ro
     restart: unless-stopped
     depends_on:
       - fuseki
+    logging: *default-logging
 
   fuseki:
     image: stain/jena-fuseki:latest
@@ -27,6 +37,10 @@ services:
       - fuseki-data:/fuseki
     ports:
       - "3030:3030"
+    logging: *default-logging
 
 volumes:
+  watcher-vault:
+    name: watcher_watcher-vault
   fuseki-data:
+    name: watcher_fuseki-data
