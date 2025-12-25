@@ -71,6 +71,7 @@ FROM node:22-slim AS quartz
 WORKDIR /usr/src/app
 RUN npm install -g npm@11.6.4
 COPY services/quartz/package.json services/quartz/package-lock.json* ./
+COPY services/quartz/scripts/checkNpmVersion.mjs ./scripts/
 RUN npm ci
 COPY services/quartz/ .
 RUN chmod +x start-quartz.sh
