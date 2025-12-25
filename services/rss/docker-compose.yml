@@ -13,9 +13,15 @@ services:
     environment:
       POSTGRES_USER: rssuser
       POSTGRES_PASSWORD: rsspass
+      POSTGRES_PASSWORD_DEFAULT: rsspass
+      POSTGRES_CREDENTIAL_KEY: POSTGRES_RSS_PASSWORD
+      CREDENTIALS_FILE: /credentials/credentials.txt
       POSTGRES_DB: telegram_rss
+    entrypoint: ["/opt/quartz/postgres-entrypoint.sh"]
     volumes:
       - rss-db:/var/lib/postgresql/data
+      - credentials:/credentials
+      - ../shared/postgres-entrypoint.sh:/opt/quartz/postgres-entrypoint.sh:ro
     restart: unless-stopped
     logging: *default-logging
     healthcheck:
@@ -35,10 +41,13 @@ services:
         condition: service_healthy
     env_file: ../../.env
     environment:
-      DATABASE_URL: ${RSS_DB_URL}
+      DATABASE_URL: ${RSS_DB_URL:-postgresql+psycopg2://rssuser:rsspass@postgres_rss:5432/telegram_rss}
+      CREDENTIALS_FILE: /credentials/credentials.txt
+      DB_PASSWORD_DEFAULT: rsspass
     volumes:
       - rss-sessions:/app/sessions
       - ./config.yaml:/app/config.yaml:ro
+      - credentials:/credentials
     ports:
       - "2000:8000"
     restart: unless-stopped
@@ -49,3 +58,5 @@ volumes:
     name: watcher_telegram_rss_pgdata
   rss-sessions:
     name: watcher_telegram_rss_sessions
+  credentials:
+    name: watcher_credentials

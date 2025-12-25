@@ -4,6 +4,7 @@ import os
 import time
 import secrets
 import string
+from pathlib import Path
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import OperationalError
 
@@ -30,6 +31,28 @@ def generate_secure_password(length=24):
     """Generates a secure random password."""
     alphabet = string.ascii_letters + string.digits + "-_!@#"
     return ''.join(secrets.choice(alphabet) for i in range(length))
+
+def write_credentials_file(email: str, password: str, filename: str = "credentials.txt"):
+    """Write generated credentials to a local file."""
+    credentials_path = Path(os.environ.get("CREDENTIALS_FILE", filename))
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+
+    existing: dict[str, str] = {}
+    if credentials_path.exists():
+        for line in credentials_path.read_text(encoding="utf-8").splitlines():
+            if not line or line.lstrip().startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            existing[key] = value
+
+    existing["WATCHER_ADMIN_EMAIL"] = email
+    existing["WATCHER_ADMIN_PASSWORD"] = password
+
+    content_lines = ["# Quartz bootstrap credentials"]
+    content_lines.extend(f"{key}={value}" for key, value in existing.items())
+    credentials_path.write_text("\n".join(content_lines) + "\n", encoding="utf-8")
+    os.chmod(credentials_path, 0o600)
+    print(f"SECURITY NOTICE: Saved generated credentials to {credentials_path.resolve()}")
 
 def apply_schema_patches():
     """Lightweight schema migrations for existing databases.
@@ -89,6 +112,7 @@ def init():
                 print(f"GENERATED SECURE PASSWORD: {admin_pass}")
                 print("="*60)
                 print("Please log in and change this immediately or set ADMIN_PASSWORD env var.")
+                write_credentials_file(admin_email, admin_pass)
             
             admin = User(email=admin_email, username='Super Admin', role='admin')
             admin.set_password(admin_pass)

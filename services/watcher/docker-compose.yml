@@ -13,9 +13,15 @@ services:
     environment:
       POSTGRES_USER: watcher
       POSTGRES_PASSWORD: watcherpass
+      POSTGRES_PASSWORD_DEFAULT: watcherpass
+      POSTGRES_CREDENTIAL_KEY: POSTGRES_WATCHER_PASSWORD
+      CREDENTIALS_FILE: /credentials/credentials.txt
       POSTGRES_DB: watcher
+    entrypoint: ["/opt/quartz/postgres-entrypoint.sh"]
     volumes:
       - watcher-db:/var/lib/postgresql/data
+      - credentials:/credentials
+      - ../shared/postgres-entrypoint.sh:/opt/quartz/postgres-entrypoint.sh:ro
     restart: unless-stopped
     logging: *default-logging
     healthcheck:
@@ -30,9 +36,15 @@ services:
     environment:
       POSTGRES_USER: rssuser
       POSTGRES_PASSWORD: rsspass
+      POSTGRES_PASSWORD_DEFAULT: rsspass
+      POSTGRES_CREDENTIAL_KEY: POSTGRES_RSS_PASSWORD
+      CREDENTIALS_FILE: /credentials/credentials.txt
       POSTGRES_DB: telegram_rss
+    entrypoint: ["/opt/quartz/postgres-entrypoint.sh"]
     volumes:
       - rss-db:/var/lib/postgresql/data
+      - credentials:/credentials
+      - ../shared/postgres-entrypoint.sh:/opt/quartz/postgres-entrypoint.sh:ro
     restart: unless-stopped
     logging: *default-logging
     healthcheck:
@@ -75,13 +87,16 @@ services:
     container_name: quartz-watcher
     env_file: ../../.env
     environment:
-      DATABASE_URL: ${WATCHER_DB_URL}
+      DATABASE_URL: ${WATCHER_DB_URL:-postgresql+psycopg2://watcher:watcherpass@postgres_watcher:5432/watcher}
       NER_SERVICE_URL: http://ner:8000
       LIBRETRANSLATE_URL: http://libretranslate:4000
+      CREDENTIALS_FILE: /credentials/credentials.txt
+      DB_PASSWORD_DEFAULT: watcherpass
     ports:
       - "5000:5000"
     volumes:
       - watcher-vault:/app/vault_data
+      - credentials:/credentials
     depends_on:
       postgres_watcher:
         condition: service_healthy
@@ -100,11 +115,14 @@ services:
     container_name: quartz-watcher-worker
     env_file: ../../.env
     environment:
-      DATABASE_URL: ${WATCHER_DB_URL}
+      DATABASE_URL: ${WATCHER_DB_URL:-postgresql+psycopg2://watcher:watcherpass@postgres_watcher:5432/watcher}
       LIBRETRANSLATE_URL: http://libretranslate:4000
       ENABLE_SCHEDULER: "true"
+      CREDENTIALS_FILE: /credentials/credentials.txt
+      DB_PASSWORD_DEFAULT: watcherpass
     volumes:
       - watcher-vault:/app/vault_data
+      - credentials:/credentials
     depends_on:
       postgres_watcher:
         condition: service_healthy
@@ -119,10 +137,13 @@ services:
     container_name: quartz-rss
     env_file: ../../.env
     environment:
-      DATABASE_URL: ${RSS_DB_URL}
+      DATABASE_URL: ${RSS_DB_URL:-postgresql+psycopg2://rssuser:rsspass@postgres_rss:5432/telegram_rss}
+      CREDENTIALS_FILE: /credentials/credentials.txt
+      DB_PASSWORD_DEFAULT: rsspass
     volumes:
       - rss-sessions:/app/sessions
       - ../rss/config.yaml:/app/config.yaml:ro
+      - credentials:/credentials
     ports:
       - "2000:8000"
     depends_on:
@@ -138,8 +159,11 @@ services:
       target: harvester
     container_name: quartz-harvester
     env_file: ../../.env
+    environment:
+      CREDENTIALS_FILE: /credentials/credentials.txt
     volumes:
       - watcher-vault:/data:ro
+      - credentials:/credentials
     depends_on:
       - fuseki
     restart: unless-stopped
@@ -150,8 +174,12 @@ services:
     container_name: quartz-fuseki
     environment:
       - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-changeme}
+      - CREDENTIALS_FILE=/credentials/credentials.txt
     volumes:
       - fuseki-data:/fuseki
+      - credentials:/credentials
+      - ../shared/fuseki-entrypoint.sh:/opt/quartz/fuseki-entrypoint.sh:ro
+    entrypoint: ["/opt/quartz/fuseki-entrypoint.sh"]
     ports:
       - "3030:3030"
     restart: unless-stopped
@@ -183,3 +211,5 @@ volumes:
     name: watcher_libretranslate_api_keys
   libretranslate-models:
     name: watcher_libretranslate_models
+  credentials:
+    name: watcher_credentials
