@@ -54,7 +54,9 @@ FROM python-base AS rss
 COPY services/rss/ .
 # Note: config.yaml is usually mounted via volume, but we copy a default here
 COPY services/rss/config.yaml ./config.yaml
+RUN chmod +x entrypoint.sh
 EXPOSE 8000
+ENTRYPOINT ["./entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # ==========================================

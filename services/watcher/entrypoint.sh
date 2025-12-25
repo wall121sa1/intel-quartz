@@ -7,6 +7,8 @@ echo "--- Container Starting ---"
 echo "Entrypoint command: $@"
 
 secrets_file=""
+CREDENTIALS_FILE="${CREDENTIALS_FILE:-/credentials/credentials.txt}"
+DB_PASSWORD_DEFAULT="${DB_PASSWORD_DEFAULT:-watcherpass}"
 
 generate_secret_key() {
   python - <<'PY'
@@ -49,6 +51,12 @@ ensure_secret() {
   fi
 
   export "${key_name}=${current_value}"
+}
+
+read_credential() {
+  if [ -f "${CREDENTIALS_FILE}" ]; then
+    awk -F= -v key="$1" '$1 == key {value=$2} END {print value}' "${CREDENTIALS_FILE}"
+  fi
 }
 
 wait_for_service() {
@@ -100,6 +108,18 @@ fi
 
 ensure_secret "SECRET_KEY" generate_secret_key "change-me" "dev-secret-key"
 ensure_secret "ENCRYPTION_KEY" generate_encryption_key "change-me-too" "change-me"
+
+if [ -n "${DATABASE_URL:-}" ]; then
+  db_password=$(read_credential "POSTGRES_WATCHER_PASSWORD")
+  if [ -n "${db_password}" ]; then
+    placeholder=":${DB_PASSWORD_DEFAULT}@"
+    if printf '%s' "${DATABASE_URL}" | grep -q "${placeholder}"; then
+      DATABASE_URL=$(printf '%s' "${DATABASE_URL}" | sed "s/${placeholder}/:${db_password}@/")
+      export DATABASE_URL
+      echo "Updated Watcher DATABASE_URL from credentials file."
+    fi
+  fi
+fi
 
 # 1. Run the Python Init Script
 # This will try to connect to the DB. If the DB is still booting,

@@ -18,11 +18,13 @@ services:
       FUSEKI_DATASET_NAME: ${FUSEKI_DATASET_NAME:-knowledge-graph}
       FUSEKI_ADMIN_USER: ${FUSEKI_ADMIN_USER:-admin}
       FUSEKI_ADMIN_PASSWORD: ${FUSEKI_ADMIN_PASSWORD:-changeme}
+      CREDENTIALS_FILE: /credentials/credentials.txt
       WATCH_DIR: ${WATCH_DIR:-/data}
       POLL_INTERVAL: ${POLL_INTERVAL:-60}
       BASE_URI: ${BASE_URI:-file:///data/}
     volumes:
       - watcher-vault:/data:ro
+      - credentials:/credentials
     restart: unless-stopped
     depends_on:
       - fuseki
@@ -33,8 +35,12 @@ services:
     restart: unless-stopped
     environment:
       - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-changeme}
+      - CREDENTIALS_FILE=/credentials/credentials.txt
     volumes:
       - fuseki-data:/fuseki
+      - credentials:/credentials
+      - ../shared/fuseki-entrypoint.sh:/opt/quartz/fuseki-entrypoint.sh:ro
+    entrypoint: ["/opt/quartz/fuseki-entrypoint.sh"]
     ports:
       - "3030:3030"
     logging: *default-logging
@@ -44,3 +50,5 @@ volumes:
     name: watcher_watcher-vault
   fuseki-data:
     name: watcher_fuseki-data
+  credentials:
+    name: watcher_credentials
