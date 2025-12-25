@@ -37,4 +37,5 @@ sessions/
 .env
 .env.local
 config.yaml
+!services/rss/config.yaml
 instance/
