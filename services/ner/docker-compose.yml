@@ -1,10 +1,12 @@
-# docker-compose.yml
 version: "3.9"
 
 services:
   ner:
-    build: .              # uses the Dockerfile in this folder
-    container_name: ner
+    build:
+      context: ../..
+      dockerfile: ../../Dockerfile
+      target: ner
+    container_name: quartz-ner
     ports:
-      - "8000:8000"       # host:container
+      - "8000:8000"
     restart: unless-stopped

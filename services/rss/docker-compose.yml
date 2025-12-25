@@ -1,46 +1,51 @@
 version: "3.9"
 
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
-  postgres:
+  postgres_rss:
     image: postgres:16
-    command: ["postgres", "-p", "3432"]
+    container_name: quartz-db-rss
     environment:
       POSTGRES_USER: rssuser
       POSTGRES_PASSWORD: rsspass
       POSTGRES_DB: telegram_rss
     volumes:
-      - pgdata:/var/lib/postgresql/data
-    ports:
-      # Expose database on a non-default port to avoid local conflicts
-      - "3432:3432"
+      - rss-db:/var/lib/postgresql/data
     restart: unless-stopped
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rssuser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  telegram_rss:
-    build: .
+  rss:
+    build:
+      context: ../..
+      dockerfile: ../../Dockerfile
+      target: rss
+    container_name: quartz-rss
     depends_on:
-      - postgres
-    env_file:
-      - .env
+      postgres_rss:
+        condition: service_healthy
+    env_file: ../../.env
     environment:
-      # DB connection (overrides config.yaml)
-      DATABASE_URL: postgresql+psycopg://rssuser:rsspass@postgres:3432/telegram_rss
-
-      # Bot 1 (Mess Bot)
-      MESS_BOT_API_ID: ${MESS_BOT_API_ID:?Set BOT_API_ID in .env}
-      MESS_BOT_API_HASH: ${MESS_BOT_API_HASH:?Set API_HASH in .env}
-
-      # Bot 2 (fa_markets_bot)
-      # FA_MARKETS_BOT_API_ID: ${FA_MARKETS_BOT_API_ID:?Set FA_MARKETS_BOT_API_ID in .env}
-      # FA_MARKETS_BOT_API_HASH: ${FA_MARKETS_BOT_API_HASH:?Set FA_MARKETS_BOT_API_HASH in .env}
+      DATABASE_URL: ${RSS_DB_URL}
     volumes:
+      - rss-sessions:/app/sessions
       - ./config.yaml:/app/config.yaml:ro
-      # Persist Telethon session files across restarts without shadowing the app code
-      - ./sessions:/app/sessions
     ports:
-      # host_port:container_port
-      # App listens on 8000 in container, exposed as 2000 on your machine
       - "2000:8000"
     restart: unless-stopped
+    logging: *default-logging
 
 volumes:
-  pgdata:
+  rss-db:
+    name: watcher_telegram_rss_pgdata
+  rss-sessions:
+    name: watcher_telegram_rss_sessions
