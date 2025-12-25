@@ -220,28 +220,23 @@ volumes:
   
   watcher-vault:
     name: watcher_watcher-vault
-    external: true
 
   watcher-db:
     name: watcher_watcher-db
-    external: true
 
   rss-db:
     name: watcher_telegram_rss_pgdata
-    external: true
 
   rss-sessions:
     # This might be new, so we let Docker create it if it doesn't exist
     # or you can map it to a host folder: ./data/sessions:/app/sessions
+    name: watcher_telegram_rss_sessions
   
   fuseki-data:
     name: watcher_fuseki-data
-    external: true
 
   libretranslate-keys:
     name: watcher_libretranslate_api_keys
-    external: true
 
   libretranslate-models:
     name: watcher_libretranslate_models
-    external: true
