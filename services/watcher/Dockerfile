@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM python:3.11-slim AS base
+FROM python:3.11-slim AS watcher
 
 # Prevents Python from writing pyc files and enables unbuffered output
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -20,12 +20,12 @@ RUN apt-get update && \
 WORKDIR /app
 
 # Install Python dependencies first to leverage Docker layer caching
-COPY watcher/requirements.txt ./requirements.txt
+COPY services/watcher/requirements.txt ./requirements.txt
 RUN pip install --upgrade pip setuptools wheel
 RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
 
 # Copy application code
-COPY watcher/ ./
+COPY services/watcher/ ./
 
 # Ensure entrypoint is executable
 RUN chmod +x /app/entrypoint.sh
