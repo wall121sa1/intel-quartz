@@ -30,6 +30,15 @@ if [ -n "${existing_password}" ]; then
   fi
 fi
 
+if [ -z "${existing_password}" ] && [ -n "${POSTGRES_PASSWORD:-}" ]; then
+  if [ -w "${CREDENTIALS_FILE}" ]; then
+    printf '%s=%s\n' "${CREDENTIALS_KEY}" "${POSTGRES_PASSWORD}" >>"${CREDENTIALS_FILE}"
+    echo "Stored ${CREDENTIALS_KEY} in ${CREDENTIALS_FILE}."
+  else
+    echo "Warning: ${CREDENTIALS_KEY} set but credentials file not writable." >&2
+  fi
+fi
+
 if [ -z "${POSTGRES_PASSWORD:-}" ] || [ "${POSTGRES_PASSWORD}" = "${DEFAULT_PASSWORD}" ]; then
   POSTGRES_PASSWORD=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)
   if [ -w "${CREDENTIALS_FILE}" ]; then
