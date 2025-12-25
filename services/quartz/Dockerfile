@@ -10,4 +10,6 @@ FROM node:22.11.0-slim
 WORKDIR /usr/src/app
 COPY --from=builder /usr/src/app/ /usr/src/app/
 COPY services/quartz/ .
+RUN useradd --create-home --shell /usr/sbin/nologin appuser && chown -R appuser:appuser /usr/src/app
+USER appuser
 CMD ["bash"]

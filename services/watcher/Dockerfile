@@ -32,5 +32,8 @@ RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 5000
 
+RUN useradd --create-home --shell /usr/sbin/nologin appuser && chown -R appuser:appuser /app
+USER appuser
+
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["gunicorn", "-b", "0.0.0.0:5000", "run:app"]
