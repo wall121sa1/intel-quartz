@@ -18,7 +18,7 @@ app = FastAPI()
 
 SERVICE_NAME = os.getenv("SERVICE_NAME", "ner-service")
 INSTANCE_ID = os.getenv("INSTANCE_ID", socket.gethostname())
-SPACY_MODEL = os.getenv("SPACY_MODEL", "en_core_web_sm")
+SPACY_MODEL = os.getenv("SPACY_MODEL", "en_core_web_lg")
 
 START_TIME = time.time()
 rules_lock = Lock()
