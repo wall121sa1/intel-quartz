@@ -5,6 +5,7 @@ WORKDIR /app
 
 # Install system deps (for spaCy)
 RUN apt-get update && apt-get install -y \
+    --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
@@ -20,4 +21,6 @@ COPY services/ner/app.py .
 EXPOSE 8000
 
 # Start the service
+RUN useradd --create-home --shell /usr/sbin/nologin appuser && chown -R appuser:appuser /app
+USER appuser
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

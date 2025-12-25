@@ -167,7 +167,8 @@ services:
       - watcher-vault:/data:ro
       - credentials:/credentials
     depends_on:
-      - fuseki
+      fuseki:
+        condition: service_healthy
     restart: unless-stopped
     logging: *default-logging
 
@@ -176,8 +177,9 @@ services:
       context: ../..
       dockerfile: services/shared/fuseki.Dockerfile
     container_name: quartz-fuseki
+    user: "${FUSEKI_UID:-1000}:${FUSEKI_GID:-1000}"
     environment:
-      - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-changeme}
+      - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-}
       - CREDENTIALS_FILE=/credentials/credentials.txt
     volumes:
       - fuseki-data:/fuseki
