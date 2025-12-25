@@ -65,6 +65,7 @@ services:
       context: .
       dockerfile: services/shared/fuseki.Dockerfile
     container_name: quartz-fuseki
+    user: "${FUSEKI_UID:-0}:${FUSEKI_GID:-0}"
     environment:
       - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-changeme}
       - CREDENTIALS_FILE=/credentials/credentials.txt
