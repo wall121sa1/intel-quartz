@@ -1,5 +1,6 @@
 database:
-  url: postgresql+psycopg2://rssuser:rsspass@postgres_rss:5432/telegram_rss
+  # This matches the RSS_DB_URL in your example.txt
+  url: postgresql+psycopg://rssuser:rsspass@postgres_rss:5432/telegram_rss
 
 polling:
   interval_seconds: 20
@@ -13,6 +14,6 @@ staging:
   default_max_items: 200
 
 bots:
-  - name: ru_crime_bot
-    theme: crime
-    session_name: ru_crime_bot.session
+  # Renamed to "mess_bot" so it picks up MESS_BOT_API_ID from your .env
+  - name: mess_bot
+    session_name: mess_bot.session
