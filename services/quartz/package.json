@@ -15,12 +15,12 @@
     "quartz": "./quartz/bootstrap-cli.mjs",
     "docs": "npx quartz build --serve -d docs",
     "check": "tsc --noEmit && npx prettier . --check",
-    "lint:md": "python watcher/markdown_lint.py",
+    "lint:md": "python ../watcher/markdown_lint.py",
     "format": "npx prettier . --write",
     "test": "tsx --test",
     "profile": "0x -D prof ./quartz/bootstrap-cli.mjs build --concurrency=1",
-    "preinstall": "node scripts/checkNpmVersion.mjs",
-    "check:npm": "node scripts/checkNpmVersion.mjs",
+    "preinstall": "node ../../scripts/checkNpmVersion.mjs",
+    "check:npm": "node ../../scripts/checkNpmVersion.mjs",
     "deps:check": "npm outdated --depth=0"
   },
   "engines": {
