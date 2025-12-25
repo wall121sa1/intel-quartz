@@ -5,6 +5,7 @@ import frontmatter
 import requests
 import re
 import urllib.parse
+from typing import Optional
 from geopy.geocoders import Nominatim
 from countryinfo import CountryInfo
 from psycopg import connect
@@ -12,7 +13,7 @@ from psycopg import connect
 # --- CONFIGURATION ---
 # We read these from Docker environment variables
 # Keep the dataset name aligned with the default Fuseki endpoint so initial sync can create it automatically.
-def read_credentials_file(key: str) -> str | None:
+def read_credentials_file(key: str) -> Optional[str]:
     credentials_path = os.getenv("CREDENTIALS_FILE", "/credentials/credentials.txt")
     if not os.path.exists(credentials_path):
         return None
