@@ -9,12 +9,12 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install
-COPY requirements.txt .
+COPY services/ner/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN python -m spacy download en_core_web_lg
 
 # Copy app code
-COPY app.py .
+COPY services/ner/app.py .
 
 # Expose port
 EXPOSE 8000
