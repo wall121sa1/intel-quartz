@@ -1,4 +1,6 @@
 x-logging: &default-logging
+  # Reusable logging configuration to prevent log files from growing infinitely.
+  # Limits logs to 3 files of 10MB each.
   driver: "json-file"
   options:
     max-size: "10m"
@@ -9,6 +11,7 @@ services:
   # DATABASES
   # ==========================================
 
+  # Primary database for the 'watcher' application logic.
   postgres_watcher:
     build:
       context: .
@@ -25,12 +28,14 @@ services:
       - ./services/shared/postgres-entrypoint.sh:/opt/quartz/postgres-entrypoint.sh:ro
     restart: unless-stopped
     logging: *default-logging
+    # Healthcheck ensures the DB is actually ready to accept connections before dependent services start.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U watcher"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  # Dedicated database for the RSS feed service.
   postgres_rss:
     build:
       context: .
@@ -52,6 +57,7 @@ services:
       timeout: 5s
       retries: 5
 
+  # Apache Jena Fuseki: A SPARQL server used for storing semantic data (Knowledge Graph).
   fuseki:
     build:
       context: .
@@ -72,6 +78,7 @@ services:
   # PYTHON SERVICES
   # ==========================================
 
+  # The core web application API. Connects to the database, NER, and Translation services.
   watcher:
     build:
       context: .
@@ -93,6 +100,7 @@ services:
     restart: unless-stopped
     logging: *default-logging
 
+  # Background worker for 'watcher'. Handles scheduled tasks (cron jobs) and async processing.
   watcher-worker:
     build:
       context: .
@@ -112,6 +120,7 @@ services:
     restart: unless-stopped
     logging: *default-logging
 
+  # Service responsible for fetching and managing RSS feeds (e.g., Telegram to RSS).
   rss:
     build:
       context: .
@@ -132,6 +141,7 @@ services:
     restart: unless-stopped
     logging: *default-logging
 
+  # Data processing service that likely reads from the vault and updates the Fuseki Knowledge Graph.
   harvester:
     build:
       context: .
@@ -151,16 +161,18 @@ services:
   # SUPPORT SERVICES
   # ==========================================
 
+  # Named Entity Recognition service (likely extracts names, places, orgs from text).
   ner:
     build:
       context: .
       dockerfile: services/ner/Dockerfile
     container_name: quartz-ner
     ports:
-      - "8000:5454"
+      - "5454:8000"
     restart: unless-stopped
     logging: *default-logging
 
+  # Self-hosted offline translation API (alternative to Google Translate).
   libretranslate:
     image: libretranslate/libretranslate:latest
     container_name: quartz-translate
@@ -176,6 +188,7 @@ services:
     restart: unless-stopped
     logging: *default-logging
 
+  # Web-based file manager allowing you to browse/edit files in the 'watcher-vault' volume.
   filebrowser:
     image: filebrowser/filebrowser:latest
     container_name: quartz-filebrowser
@@ -187,6 +200,7 @@ services:
     restart: unless-stopped
     logging: *default-logging
 
+  # Frontend service (Quartz) that builds and serves a static site based on your markdown content.
   quartz:
     build:
       context: .
