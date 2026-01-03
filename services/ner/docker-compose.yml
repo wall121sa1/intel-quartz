@@ -6,5 +6,5 @@ services:
       target: ner
     container_name: quartz-ner
     ports:
-      - "8000:8000"
+      - "8000:5454"
     restart: unless-stopped

@@ -91,7 +91,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: ${WATCHER_DB_URL:-postgresql+psycopg2://watcher:watcherpass@postgres_watcher:5432/watcher}
-      NER_SERVICE_URL: http://ner:8000
+      NER_SERVICE_URL: http://ner:5454
       LIBRETRANSLATE_URL: http://libretranslate:4000
       CREDENTIALS_FILE: /credentials/credentials.txt
       DB_PASSWORD_DEFAULT: watcherpass
@@ -179,7 +179,7 @@ services:
       dockerfile: services/ner/Dockerfile
     container_name: quartz-ner
     ports:
-      - "8000:8000"
+      - "8000:5454"
     restart: unless-stopped
     logging: *default-logging
 
