@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
-from .credentials import credentials_file_path, get_bot_credentials, set_bot_credentials
+from .credentials import get_bot_credentials, get_bot_env_keys
 from .db import get_session
 from .models import Bot, Channel, Feed, FeedItem
 from .dialog_sync import sync_dialogs_for_bot
@@ -551,7 +551,6 @@ def edit_channel_form(channel_id: int, db: Session = Depends(get_session)):
 def credentials_form(request: Request):
     config = request.app.state.config
     bots = config.bots
-    file_path = credentials_file_path()
 
     rows = []
     for bot in bots:
@@ -562,13 +561,8 @@ def credentials_form(request: Request):
             if configured
             else '<span class="pill pill-red">missing</span>'
         )
-        source_label = "missing"
-        if source == "env":
-            source_label = "env"
-        elif source == "credentials":
-            source_label = "credentials file"
-        elif source == "mixed":
-            source_label = "mixed"
+        source_label = "env" if source == "env" else "missing"
+        api_id_key, api_hash_key = get_bot_env_keys(bot.name)
 
         rows.append(f"""
         <tr>
@@ -577,12 +571,8 @@ def credentials_form(request: Request):
           <td>{status_pill}</td>
           <td>{source_label}</td>
           <td>
-            <form method="post" action="/dashboard/credentials" style="display:grid; gap:6px;">
-              <input type="hidden" name="bot_name" value="{bot.name}">
-              <input class="field-input" name="api_id" placeholder="API ID (e.g. 123456)" required>
-              <input class="field-input" name="api_hash" placeholder="API Hash" required>
-              <button class="btn btn-sm" type="submit">Save credentials</button>
-            </form>
+            <code>{api_id_key}</code><br>
+            <code>{api_hash_key}</code>
           </td>
         </tr>
         """)
@@ -591,8 +581,8 @@ def credentials_form(request: Request):
     <div class="card">
       <h2>Telegram Credentials</h2>
       <p class="hint">
-        Add or update Telegram API credentials for each bot. Values are written to
-        <code>{file_path}</code>. Restart the RSS service after updating credentials
+        Set Telegram API credentials for each bot in your <code>.env</code> file using the
+        environment variable names below. Restart the RSS service after updating credentials
         so the pollers reload them.
       </p>
       <table>
@@ -602,7 +592,7 @@ def credentials_form(request: Request):
             <th>Session</th>
             <th>Status</th>
             <th>Source</th>
-            <th>Update credentials</th>
+            <th>Required env keys</th>
           </tr>
         </thead>
         <tbody>
@@ -613,39 +603,6 @@ def credentials_form(request: Request):
     """
 
     return HTMLResponse(wrap_page(table_html, "Telegram RSS – Credentials"))
-
-
-@router.post("/dashboard/credentials")
-def update_credentials(
-    bot_name: str = Form(...),
-    api_id: str = Form(...),
-    api_hash: str = Form(...),
-):
-    api_id = api_id.strip()
-    api_hash = api_hash.strip()
-
-    if not api_id.isdigit():
-        error_html = """
-        <div class="card">
-          <h2>Invalid API ID</h2>
-          <p class="hint">Telegram API ID must be numeric. Please try again.</p>
-          <a class="btn btn-secondary btn-sm" href="/dashboard/credentials">Back</a>
-        </div>
-        """
-        return HTMLResponse(wrap_page(error_html, "Telegram RSS – Credentials"), status_code=400)
-
-    if not api_hash:
-        error_html = """
-        <div class="card">
-          <h2>Invalid API Hash</h2>
-          <p class="hint">Telegram API Hash cannot be empty. Please try again.</p>
-          <a class="btn btn-secondary btn-sm" href="/dashboard/credentials">Back</a>
-        </div>
-        """
-        return HTMLResponse(wrap_page(error_html, "Telegram RSS – Credentials"), status_code=400)
-
-    set_bot_credentials(bot_name, api_id, api_hash)
-    return RedirectResponse(url="/dashboard/credentials", status_code=303)
 
 @router.post("/dashboard/feeds/release")
 async def manual_release():

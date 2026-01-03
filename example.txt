@@ -2,19 +2,20 @@
 # COMMON / SHARED
 # ==========================================
 FLASK_ENV=production
-# Secret keys for sessions/encryption (Change these in prod!)
-SECRET_KEY=change-me-global-secret
-ENCRYPTION_KEY=change-me-global-encryption-key
+# Secret keys for sessions/encryption (Required)
+SECRET_KEY=your-secret-key
+ENCRYPTION_KEY=your-encryption-key
 
 # ==========================================
 # SERVICE: WATCHER
 # ==========================================
 # Watcher DB Connection (Note the unique variable name)
-WATCHER_DB_URL=postgresql+psycopg://watcher:watcherpass@postgres_watcher:5432/watcher
+WATCHER_DB_PASSWORD=your-watcher-db-password
+WATCHER_DB_URL=postgresql+psycopg://watcher:your-watcher-db-password@postgres_watcher:5432/watcher
 
 # Admin User Bootstrapping
-ADMIN_EMAIL=admin@localhost
-ADMIN_PASSWORD=changeme
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=your-admin-password
 ALLOW_BOOTSTRAP_ADMIN=true
 
 # Service Connections
@@ -37,19 +38,20 @@ STORAGE_TYPE=local
 # SERVICE: TELEGRAM RSS
 # ==========================================
 # RSS DB Connection
-RSS_DB_URL=postgresql+psycopg://rssuser:rsspass@postgres_rss:5432/telegram_rss
+RSS_DB_PASSWORD=your-rss-db-password
+RSS_DB_URL=postgresql+psycopg://rssuser:your-rss-db-password@postgres_rss:5432/telegram_rss
 
 # Telegram API Credentials (REQUIRED)
-MESS_BOT_API_ID=123456
-MESS_BOT_API_HASH=abcdef1234567890
+MESS_BOT_API_ID=your-telegram-api-id
+MESS_BOT_API_HASH=your-telegram-api-hash
 
 # ==========================================
 # SERVICE: HARVESTER & FUSEKI
 # ==========================================
 FUSEKI_ENDPOINT=http://fuseki:3030/knowledge-graph/update
 FUSEKI_DATASET_NAME=knowledge-graph
-FUSEKI_ADMIN_USER=admin
-FUSEKI_ADMIN_PASSWORD=changeme
+FUSEKI_ADMIN_USER=your-fuseki-admin-user
+FUSEKI_ADMIN_PASSWORD=your-fuseki-admin-password
 POLL_INTERVAL=300
 
 # ==========================================

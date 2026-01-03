@@ -14,17 +14,15 @@ services:
       target: harvester
     env_file: ../../.env
     environment:
-      FUSEKI_ENDPOINT: ${FUSEKI_ENDPOINT:-http://fuseki:3030/knowledge-graph/update}
+      FUSEKI_ENDPOINT: ${FUSEKI_ENDPOINT}
       FUSEKI_DATASET_NAME: ${FUSEKI_DATASET_NAME:-knowledge-graph}
-      FUSEKI_ADMIN_USER: ${FUSEKI_ADMIN_USER:-admin}
-      FUSEKI_ADMIN_PASSWORD: ${FUSEKI_ADMIN_PASSWORD:-}
-      CREDENTIALS_FILE: /credentials/credentials.txt
+      FUSEKI_ADMIN_USER: ${FUSEKI_ADMIN_USER}
+      FUSEKI_ADMIN_PASSWORD: ${FUSEKI_ADMIN_PASSWORD}
       WATCH_DIR: ${WATCH_DIR:-/data}
       POLL_INTERVAL: ${POLL_INTERVAL:-60}
       BASE_URI: ${BASE_URI:-file:///data/}
     volumes:
       - watcher-vault:/data:ro
-      - credentials:/credentials
     restart: unless-stopped
     depends_on:
       fuseki:
@@ -38,11 +36,9 @@ services:
     restart: unless-stopped
     user: "${FUSEKI_UID:-1000}:${FUSEKI_GID:-1000}"
     environment:
-      - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-}
-      - CREDENTIALS_FILE=/credentials/credentials.txt
+      - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD}
     volumes:
       - fuseki-data:/fuseki
-      - credentials:/credentials
       - ../shared/fuseki-entrypoint.sh:/opt/quartz/fuseki-entrypoint.sh:ro
     entrypoint: ["/opt/quartz/fuseki-entrypoint.sh"]
     ports:
@@ -54,5 +50,3 @@ volumes:
     name: watcher_watcher-vault
   fuseki-data:
     name: watcher_fuseki-data
-  credentials:
-    name: watcher_credentials

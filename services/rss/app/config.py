@@ -40,6 +40,7 @@ class AppConfig(BaseModel):
 def _inject_bot_secrets(raw_data: dict) -> None:
     """Fill in api_id/api_hash for each bot from environment variables."""
     bots = raw_data.get("bots", [])
+    missing_env = []
     for bot in bots:
         name = bot["name"]  # e.g. "ru_crime_bot"
         env_prefix = name.upper()  # RU_CRIME_BOT
@@ -48,6 +49,14 @@ def _inject_bot_secrets(raw_data: dict) -> None:
         if api_id is not None and api_hash is not None:
             bot["api_id"] = int(api_id)
             bot["api_hash"] = api_hash
+        else:
+            missing_env.append(f"{env_prefix}_API_ID/{env_prefix}_API_HASH")
+
+    if missing_env:
+        raise RuntimeError(
+            "Missing required Telegram bot credentials in .env: "
+            + ", ".join(sorted(missing_env))
+        )
 
 
 def load_config(path: str = "config.yaml") -> AppConfig:

@@ -6,85 +6,13 @@ set -e
 echo "--- Container Starting ---"
 echo "Entrypoint command: $@"
 
-secrets_file=""
-CREDENTIALS_FILE="${CREDENTIALS_FILE:-/credentials/credentials.txt}"
-DB_PASSWORD_DEFAULT="${DB_PASSWORD_DEFAULT:-watcherpass}"
-
-generate_secret_key() {
-  python - <<'PY'
-import secrets
-print(secrets.token_urlsafe(32))
-PY
-}
-
-generate_encryption_key() {
-  python - <<'PY'
-from cryptography.fernet import Fernet
-print(Fernet.generate_key().decode())
-PY
-}
-
-ensure_secret() {
-  key_name=$1
-  generator=$2
-  shift 2
-
-  current_value=$(eval "printf '%s' \"\${${key_name}:-}\"")
-  for default_value in "$@"; do
-    if [ "${current_value}" = "${default_value}" ]; then
-      current_value=""
-      break
-    fi
-  done
-
-  if [ -z "${current_value}" ] && [ -f "${secrets_file}" ]; then
-    stored_value=$(grep -m 1 "^${key_name}=" "${secrets_file}" | cut -d= -f2-)
-    if [ -n "${stored_value}" ]; then
-      current_value="${stored_value}"
-    fi
+require_env() {
+  name=$1
+  value=$(eval "printf '%s' \"\${${name}:-}\"")
+  if [ -z "${value}" ]; then
+    echo "ERROR: ${name} must be set via the .env file." >&2
+    exit 1
   fi
-
-  if [ -z "${current_value}" ]; then
-    current_value=$(${generator})
-    printf '%s=%s\n' "${key_name}" "${current_value}" >>"${secrets_file}"
-    echo "Generated ${key_name}; stored at ${secrets_file}."
-  fi
-
-  export "${key_name}=${current_value}"
-}
-
-read_credential() {
-  if [ -f "${CREDENTIALS_FILE}" ]; then
-    awk -F= -v key="$1" '$1 == key {value=$2} END {print value}' "${CREDENTIALS_FILE}"
-  fi
-}
-
-update_database_url() {
-  python - <<'PY'
-import os
-from urllib.parse import quote, urlparse, urlunparse
-
-url = os.environ.get("DATABASE_URL")
-password = os.environ.get("DB_PASSWORD")
-
-if not url or not password:
-    raise SystemExit
-
-parsed = urlparse(url)
-if not parsed.username:
-    print(url)
-    raise SystemExit
-
-username = quote(parsed.username, safe="")
-hostname = parsed.hostname or ""
-port = f":{parsed.port}" if parsed.port else ""
-userinfo = f"{username}:{quote(password, safe='')}@"
-netloc = f"{userinfo}{hostname}{port}"
-new_url = urlunparse(
-    (parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment)
-)
-print(new_url)
-PY
 }
 
 wait_for_service() {
@@ -125,28 +53,11 @@ else
   echo "LIBRETRANSLATE_URL is not set; skipping LibreTranslate readiness check."
 fi
 
-VAULT_ROOT=${VAULT_ROOT:-/app/vault_data}
-secrets_file="${VAULT_ROOT}/generated-secrets.env"
-mkdir -p "${VAULT_ROOT}"
-
-if [ ! -f "${secrets_file}" ]; then
-  touch "${secrets_file}"
-  chmod 600 "${secrets_file}"
-fi
-
-ensure_secret "SECRET_KEY" generate_secret_key "change-me" "dev-secret-key"
-ensure_secret "ENCRYPTION_KEY" generate_encryption_key "change-me-too" "change-me"
-
-if [ -n "${DATABASE_URL:-}" ]; then
-  db_password=$(read_credential "POSTGRES_WATCHER_PASSWORD")
-  if [ -n "${db_password}" ]; then
-    DB_PASSWORD="${db_password}"
-    export DB_PASSWORD
-    DATABASE_URL=$(update_database_url)
-    export DATABASE_URL
-    echo "Updated Watcher DATABASE_URL from credentials file."
-  fi
-fi
+require_env "SECRET_KEY"
+require_env "ENCRYPTION_KEY"
+require_env "DATABASE_URL"
+require_env "ADMIN_EMAIL"
+require_env "ADMIN_PASSWORD"
 
 # 1. Run the Python Init Script
 # This will try to connect to the DB. If the DB is still booting,

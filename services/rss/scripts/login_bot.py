@@ -26,7 +26,7 @@ def get_bot_credentials_for_login(bot_name: str):
     if not api_id or not api_hash:
         raise SystemExit(
             f"Missing env vars {api_id_env} / {api_hash_env} for bot '{bot_name}'.\n"
-            "Set them in your environment, credentials file, or in a .env file."
+            "Set them in your environment or .env file."
         )
 
     return int(api_id), api_hash
