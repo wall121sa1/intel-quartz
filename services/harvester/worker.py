@@ -5,7 +5,6 @@ import frontmatter
 import requests
 import re
 import urllib.parse
-from typing import Optional
 from geopy.geocoders import Nominatim
 from countryinfo import CountryInfo
 from psycopg import connect
@@ -13,31 +12,18 @@ from psycopg import connect
 # --- CONFIGURATION ---
 # We read these from Docker environment variables
 # Keep the dataset name aligned with the default Fuseki endpoint so initial sync can create it automatically.
-def read_credentials_file(key: str) -> Optional[str]:
-    credentials_path = os.getenv("CREDENTIALS_FILE", "/credentials/credentials.txt")
-    if not os.path.exists(credentials_path):
-        return None
-    try:
-        with open(credentials_path, "r", encoding="utf-8") as handle:
-            value = None
-            for line in handle:
-                if "=" not in line or line.lstrip().startswith("#"):
-                    continue
-                found_key, found_value = line.strip().split("=", 1)
-                if found_key == key:
-                    value = found_value
-            return value
-    except Exception:
-        return None
+def require_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise SystemExit(f"Missing required environment variable: {name}")
+    return value
 
 FUSEKI_DATASET_NAME = os.getenv("FUSEKI_DATASET_NAME", "knowledge-graph").strip()
 FUSEKI_ENDPOINT = os.getenv(
     "FUSEKI_ENDPOINT", f"http://localhost:3030/{FUSEKI_DATASET_NAME}/update"
 )
-FUSEKI_ADMIN_USER = os.getenv("FUSEKI_ADMIN_USER", "admin")
-FUSEKI_ADMIN_PASSWORD = os.getenv("FUSEKI_ADMIN_PASSWORD")
-if not FUSEKI_ADMIN_PASSWORD or FUSEKI_ADMIN_PASSWORD == "changeme":
-    FUSEKI_ADMIN_PASSWORD = read_credentials_file("FUSEKI_ADMIN_PASSWORD")
+FUSEKI_ADMIN_USER = require_env("FUSEKI_ADMIN_USER")
+FUSEKI_ADMIN_PASSWORD = require_env("FUSEKI_ADMIN_PASSWORD")
 FUSEKI_USER = os.getenv("FUSEKI_USER")
 FUSEKI_PASSWORD = os.getenv("FUSEKI_PASSWORD")
 WATCH_DIR = os.getenv("WATCH_DIR", "/data")

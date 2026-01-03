@@ -45,7 +45,7 @@ def _get_bot_env_credentials(bot_name: str):
     if not api_id or not api_hash:
         raise RuntimeError(
             f"Missing env vars {api_id_env} / {api_hash_env} for bot '{bot_name}'. "
-            f"Set them in your environment, credentials file, or .env file."
+            "Set them in your environment or .env file."
         )
 
     return int(api_id), api_hash

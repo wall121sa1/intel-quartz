@@ -19,15 +19,11 @@ services:
     container_name: quartz-db-watcher
     environment:
       POSTGRES_USER: watcher
-      POSTGRES_PASSWORD: ${WATCHER_DB_PASSWORD:-watcherpass}
-      POSTGRES_PASSWORD_DEFAULT: watcherpass
-      POSTGRES_CREDENTIAL_KEY: POSTGRES_WATCHER_PASSWORD
-      CREDENTIALS_FILE: /credentials/credentials.txt
+      POSTGRES_PASSWORD: ${WATCHER_DB_PASSWORD}
       POSTGRES_DB: watcher
     entrypoint: ["/opt/quartz/postgres-entrypoint.sh"]
     volumes:
       - watcher-db:/var/lib/postgresql/data
-      - credentials:/credentials
       # Mount script Read-Only to ensure we use the local one (make sure it has LF endings!)
       - ./services/shared/postgres-entrypoint.sh:/opt/quartz/postgres-entrypoint.sh:ro
     restart: unless-stopped
@@ -47,15 +43,11 @@ services:
     container_name: quartz-db-rss
     environment:
       POSTGRES_USER: rssuser
-      POSTGRES_PASSWORD: ${RSS_DB_PASSWORD:-rsspass}
-      POSTGRES_PASSWORD_DEFAULT: rsspass
-      POSTGRES_CREDENTIAL_KEY: POSTGRES_RSS_PASSWORD
-      CREDENTIALS_FILE: /credentials/credentials.txt
+      POSTGRES_PASSWORD: ${RSS_DB_PASSWORD}
       POSTGRES_DB: telegram_rss
     entrypoint: ["/opt/quartz/postgres-entrypoint.sh"]
     volumes:
       - rss-db:/var/lib/postgresql/data
-      - credentials:/credentials
       - ./services/shared/postgres-entrypoint.sh:/opt/quartz/postgres-entrypoint.sh:ro
     restart: unless-stopped
     logging: *default-logging
@@ -73,11 +65,9 @@ services:
     container_name: quartz-fuseki
     user: "${FUSEKI_UID:-1000}:${FUSEKI_GID:-1000}"
     environment:
-      - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-}
-      - CREDENTIALS_FILE=/credentials/credentials.txt
+      - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD}
     volumes:
       - fuseki-data:/fuseki
-      - credentials:/credentials
     entrypoint: ["/opt/quartz/fuseki-entrypoint.sh"]
     ports:
       - "3030:3030"
@@ -97,16 +87,13 @@ services:
     container_name: quartz-watcher
     env_file: .env
     environment:
-      DATABASE_URL: ${WATCHER_DB_URL:-postgresql+psycopg2://watcher:watcherpass@postgres_watcher:5432/watcher}
-      NER_SERVICE_URL: http://ner:8000
+      DATABASE_URL: ${WATCHER_DB_URL}
+      NER_SERVICE_URL: http://ner:5454
       LIBRETRANSLATE_URL: http://libretranslate:4000
-      CREDENTIALS_FILE: /credentials/credentials.txt
-      DB_PASSWORD_DEFAULT: watcherpass
     ports:
       - "5000:5000"
     volumes:
       - watcher-vault:/app/vault_data
-      - credentials:/credentials
     depends_on:
       postgres_watcher:
         condition: service_healthy
@@ -122,14 +109,11 @@ services:
     container_name: quartz-watcher-worker
     env_file: .env
     environment:
-      DATABASE_URL: ${WATCHER_DB_URL:-postgresql+psycopg2://watcher:watcherpass@postgres_watcher:5432/watcher}
+      DATABASE_URL: ${WATCHER_DB_URL}
       LIBRETRANSLATE_URL: http://libretranslate:4000
       ENABLE_SCHEDULER: "true"
-      CREDENTIALS_FILE: /credentials/credentials.txt
-      DB_PASSWORD_DEFAULT: watcherpass
     volumes:
       - watcher-vault:/app/vault_data
-      - credentials:/credentials
     depends_on:
       postgres_watcher:
         condition: service_healthy
@@ -145,13 +129,10 @@ services:
     container_name: quartz-rss
     env_file: .env
     environment:
-      DATABASE_URL: ${RSS_DB_URL:-postgresql+psycopg://rssuser:rsspass@postgres_rss:5432/telegram_rss}
-      CREDENTIALS_FILE: /credentials/credentials.txt
-      DB_PASSWORD_DEFAULT: rsspass
+      DATABASE_URL: ${RSS_DB_URL}
     volumes:
       - rss-sessions:/app/sessions
       - ./services/rss/config.yaml:/app/config.yaml:ro
-      - credentials:/credentials
     ports:
       - "2000:8000"
     depends_on:
@@ -168,18 +149,8 @@ services:
       target: harvester
     container_name: quartz-harvester
     env_file: .env
-    environment:
-      FUSEKI_ENDPOINT: ${FUSEKI_ENDPOINT:-http://fuseki:3030/knowledge-graph/update}
-      FUSEKI_DATASET_NAME: ${FUSEKI_DATASET_NAME:-knowledge-graph}
-      FUSEKI_ADMIN_USER: ${FUSEKI_ADMIN_USER:-admin}
-      FUSEKI_ADMIN_PASSWORD: ${FUSEKI_ADMIN_PASSWORD:-}
-      CREDENTIALS_FILE: /credentials/credentials.txt
-      WATCH_DIR: ${WATCH_DIR:-/data}
-      POLL_INTERVAL: ${POLL_INTERVAL:-60}
-      BASE_URI: ${BASE_URI:-file:///data/}
     volumes:
       - watcher-vault:/data:ro
-      - credentials:/credentials
     depends_on:
       fuseki:
         condition: service_healthy
@@ -263,5 +234,3 @@ volumes:
     name: watcher_libretranslate_api_keys
   libretranslate-models:
     name: watcher_libretranslate_models
-  credentials:
-    name: watcher_credentials
